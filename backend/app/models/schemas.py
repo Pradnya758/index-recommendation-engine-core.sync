@@ -46,3 +46,61 @@ class QueryPlanStep(BaseModel):
 class QueryPlanResponse(BaseModel):
     query: str
     plan: list[QueryPlanStep]
+
+
+class ColumnReference(BaseModel):
+    table: str
+    column: str
+
+
+class WhereCondition(BaseModel):
+    table: str
+    column: str
+    operator: str
+    kind: str
+
+
+class JoinCondition(BaseModel):
+    left: ColumnReference
+    right: ColumnReference
+
+
+class QueryFeatures(BaseModel):
+    tables: list[str]
+    where_conditions: list[WhereCondition]
+    equality_filters: list[ColumnReference]
+    range_filters: list[ColumnReference]
+    join_columns: list[ColumnReference]
+    order_by_columns: list[ColumnReference]
+    group_by_columns: list[ColumnReference]
+
+
+class RecommendationEvidence(BaseModel):
+    feature: str
+    table: str
+    column: str
+    detail: str
+
+
+class IndexRecommendation(BaseModel):
+    table: str
+    columns: list[str]
+    create_index_sql: str
+    drop_index_sql: str
+    score: int
+    confidence: str
+    reasons: list[str]
+    evidence: list[RecommendationEvidence]
+
+
+class RejectedCandidate(BaseModel):
+    table: str
+    columns: list[str]
+    reason: str
+
+
+class RecommendationResponse(BaseModel):
+    query: str
+    analysis: QueryFeatures
+    recommendations: list[IndexRecommendation]
+    rejected_candidates: list[RejectedCandidate]

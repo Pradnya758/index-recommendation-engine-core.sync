@@ -33,3 +33,12 @@ def test_query_plan_endpoint_returns_structured_steps():
     body = response.json()
     assert body["plan"]
     assert {"id", "parent", "detail"} <= set(body["plan"][0])
+
+
+def test_recommendations_endpoint_returns_rule_based_result():
+    response = client.post("/api/recommendations", json={"query": "SELECT * FROM orders WHERE status = 'paid'"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["recommendations"][0]["columns"] == ["status"]
+    assert body["recommendations"][0]["create_index_sql"].startswith("CREATE INDEX")

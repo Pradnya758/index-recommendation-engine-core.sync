@@ -1,6 +1,14 @@
 from fastapi import APIRouter, HTTPException
 
-from app.models.schemas import QueryPlanResponse, SchemaInspectionResponse, SqlQueryRequest, SqlValidationResponse
+from app.models.schemas import (
+    QueryPlanResponse,
+    RecommendationResponse,
+    SchemaInspectionResponse,
+    SqlQueryRequest,
+    SqlValidationResponse,
+)
+from app.services.recommendation_engine import build_recommendations
+from app.services.sql_analyzer import SqlAnalysisError
 from app.services.sqlite_inspector import get_query_plan, inspect_demo_schema
 from app.services.sql_validator import SqlValidationError, validate_select_query
 
@@ -36,3 +44,13 @@ async def query_plan(request: SqlQueryRequest) -> QueryPlanResponse:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
     return QueryPlanResponse(query=normalized_query, plan=plan)
+
+
+@router.post("/recommendations", response_model=RecommendationResponse)
+async def recommendations(request: SqlQueryRequest) -> RecommendationResponse:
+    """Generate rule-based index recommendations for a validated demo-database query."""
+    try:
+        normalized_query = validate_select_query(request.query)
+        return build_recommendations(normalized_query, inspect_demo_schema())
+    except (SqlValidationError, SqlAnalysisError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
