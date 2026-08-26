@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 
+from app.api.analysis import router as analysis_router
+
 app = FastAPI(
     title="Index Recommendation Engine",
     version="1.0.0"
@@ -12,3 +14,6 @@ async def health():
         "status": "ok",
         "application": "Index Recommendation Engine"
     }
+
+
+app.include_router(analysis_router, prefix="/api")
