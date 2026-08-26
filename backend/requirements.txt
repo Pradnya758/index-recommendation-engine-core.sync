@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+sqlglot
+pydantic
+aiofiles
+pytest
+pytest-asyncio
+httpx
