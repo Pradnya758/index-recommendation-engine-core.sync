@@ -1,1 +1,1 @@
-# index-recommendation-engine-core.sync
+# Index-Recommendation-Engine-CoreSync
