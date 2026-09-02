@@ -1,46 +1,60 @@
 export default function SchemaPanel({ schema, error }) {
   if (error) {
-    return <p className="muted">Schema unavailable: {error}</p>;
+    return (
+      <div>
+        <div className="eyebrow">Database</div>
+        <p style={{ fontSize: "11px", color: "var(--red)", marginTop: "6px" }}>⚠ Schema unavailable: {error}</p>
+      </div>
+    );
   }
+
   if (!schema) {
-    return <p className="muted">Loading demo database...</p>;
+    return (
+      <div>
+        <div className="eyebrow">Database</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px", fontSize: "11px", color: "var(--text2)" }}>
+          <span className="spinner" style={{ width: "12px", height: "12px" }} />
+          Loading schema…
+        </div>
+      </div>
+    );
   }
 
   return (
-    <section className="side-card schema-card">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Database</p>
-          <h2>Schema explorer</h2>
-        </div>
-        <span className="database-dot" title="SQLite demo database" />
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+        <div className="eyebrow">Schema Explorer</div>
+        <span className="rp-db-dot" />
       </div>
-      <p className="muted">{schema.database}</p>
-      <div className="schema-tables">
-        {schema.tables.map((table) => (
-          <details key={table.name} className="table-details">
-            <summary>
-              <span>{table.name}</span>
-              <small>{table.columns.length} columns</small>
-            </summary>
-            <div className="column-list">
-              {table.columns.map((column) => (
-                <div className="column-row" key={column.name}>
-                  <code>{column.name}</code>
-                  <span>{column.data_type}</span>
-                  {column.primary_key_position && <b>PK</b>}
-                </div>
+      <div className="rp-db-row">
+        <span className="rp-db-dot" />
+        {schema.database}
+      </div>
+      {schema.tables.map((table) => (
+        <details key={table.name} className="tbl-details">
+          <summary className="tbl-summary">
+            <span>{table.name}</span>
+            <span className="tbl-col-count">{table.columns.length} cols</span>
+          </summary>
+          <div className="col-list">
+            {table.columns.map((col) => (
+              <div className="col-row" key={col.name}>
+                <span className="col-nm">{col.name}</span>
+                <span className="col-tp">{col.data_type}</span>
+                {col.primary_key_position && <span className="col-pk">PK</span>}
+              </div>
+            ))}
+          </div>
+          {table.indexes.length > 0 && (
+            <div className="idx-list">
+              <div className="idx-lbl">Indexes</div>
+              {table.indexes.map((idx) => (
+                <div className="idx-item" key={idx.name}>{idx.name} ({idx.columns.join(", ")})</div>
               ))}
             </div>
-            <div className="index-list">
-              <p>Existing indexes</p>
-              {table.indexes.map((index) => (
-                <code key={index.name}>{index.name} ({index.columns.join(", ")})</code>
-              ))}
-            </div>
-          </details>
-        ))}
-      </div>
-    </section>
+          )}
+        </details>
+      ))}
+    </div>
   );
 }

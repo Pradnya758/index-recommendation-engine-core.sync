@@ -1,27 +1,27 @@
 export const EXAMPLES = [
   {
-    label: "WHERE filter",
-    description: "Find paid orders without an index on status.",
-    query: "SELECT * FROM orders WHERE status = 'paid';",
+    label: "WHERE Filter",
+    description: "Filter students by major — demonstrates single-column equality index.",
+    query: "SELECT * FROM students\nWHERE major = 'Computer Science';",
   },
   {
-    label: "JOIN lookup",
-    description: "Match order rows to product rows.",
-    query: "SELECT o.order_id, p.product_name FROM orders o JOIN products p ON o.product_id = p.product_id;",
+    label: "JOIN Lookup",
+    description: "Join orders to customers — demonstrates join-column indexing.",
+    query: "SELECT o.order_id, c.full_name\nFROM orders o\nJOIN customers c ON o.customer_id = c.customer_id;",
   },
   {
     label: "ORDER BY",
-    description: "Sort a large orders result by date.",
-    query: "SELECT order_id, customer_id, order_date FROM orders ORDER BY order_date DESC;",
+    description: "Sort products by price — demonstrates sort-column index.",
+    query: "SELECT *\nFROM products\nORDER BY unit_price;",
   },
   {
-    label: "Composite WHERE",
-    description: "Equality followed by a date range.",
-    query: "SELECT * FROM orders WHERE status = 'paid' AND order_date >= '2025-01-01';",
+    label: "Composite Filter",
+    description: "Filter by customer and status, sort by date — demonstrates composite index.",
+    query: "SELECT *\nFROM orders\nWHERE customer_id = 10\n  AND status = 'paid'\nORDER BY order_date;",
   },
   {
-    label: "No opportunity",
-    description: "A primary-key lookup should not need another index.",
-    query: "SELECT * FROM orders WHERE order_id = 1;",
+    label: "No Useful Index",
+    description: "Full table select with no filter — no index can help.",
+    query: "SELECT * FROM students;",
   },
 ];

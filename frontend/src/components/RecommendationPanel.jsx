@@ -1,48 +1,89 @@
-function confidenceClass(confidence) {
-  return `confidence confidence-${confidence}`;
+function confBadge(c) {
+  return `conf-badge conf-${c}`;
 }
 
 export default function RecommendationPanel({ result, loading }) {
   if (loading) {
-    return <section className="result-panel loading-panel"><span className="spinner" /> Analyzing query structure and index coverage...</section>;
+    return (
+      <div className="az-loading">
+        <span className="spinner" />
+        Analyzing query structure and index coverage…
+      </div>
+    );
   }
+
   if (!result) {
-    return <section className="result-panel empty-state">Run an analysis to see practical index recommendations.</section>;
+    return (
+      <div className="az-empty">
+        <div className="az-empty-icon">⚡</div>
+        <div className="az-empty-title">No analysis yet</div>
+        <div className="az-empty-desc">Enter a SELECT query and click Run Analysis to see index recommendations.</div>
+      </div>
+    );
   }
+
   if (!result.recommendations.length) {
     return (
-      <section className="result-panel empty-state">
-        <strong>No new index is useful for this query.</strong>
-        <p>The relevant access path is already covered by a primary key or existing index.</p>
-        {result.rejected_candidates.map((candidate) => <small key={`${candidate.table}-${candidate.columns.join("-")}`}>{candidate.reason}</small>)}
-      </section>
+      <div className="no-rec">
+        <div className="no-rec-hdr">
+          <span className="no-rec-icon">✅</span>
+          <span className="no-rec-title">No new index needed</span>
+        </div>
+        <p style={{ fontSize: "12px", color: "var(--text2)", marginBottom: "8px" }}>
+          The relevant access path is already covered by a primary key or existing index.
+        </p>
+        <div className="rejected-list">
+          {result.rejected_candidates.map((c) => (
+            <div className="rejected-item" key={`${c.table}-${c.columns.join("-")}`}>
+              {c.reason}
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="recommendation-list">
-      {result.recommendations.map((recommendation) => (
-        <article className="recommendation-card" key={`${recommendation.table}-${recommendation.columns.join("-")}`}>
-          <div className="recommendation-topline">
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      {result.recommendations.map((rec) => (
+        <article className="rec-card" key={`${rec.table}-${rec.columns.join("-")}`}>
+          <div className="rec-hdr">
             <div>
-              <p className="eyebrow">Recommended index</p>
-              <h2>{recommendation.table}<span>.</span>{recommendation.columns.join(", ")}</h2>
+              <div className="rec-eyebrow">Recommended Index</div>
+              <div className="rec-name">
+                {rec.table}<span className="dot">.</span><span className="col">{rec.columns.join(", ")}</span>
+              </div>
             </div>
-            <div className="score-wrap">
-              <strong>{recommendation.score}</strong><span>score</span>
-              <em className={confidenceClass(recommendation.confidence)}>{recommendation.confidence}</em>
+            <div className="rec-score-wrap">
+              <div className="rec-score">{rec.score}</div>
+              <div className="rec-score-lbl">score</div>
+              <span className={confBadge(rec.confidence)}>{rec.confidence}</span>
             </div>
           </div>
-          <div className="sql-block"><span>CREATE</span><code>{recommendation.create_index_sql}</code></div>
-          <div className="sql-block secondary"><span>DROP</span><code>{recommendation.drop_index_sql}</code></div>
-          <div className="explanation-grid">
+
+          <div className="rec-sql">
+            <span className="sql-kw">CREATE</span>
+            <span className="sql-code">{rec.create_index_sql}</span>
+          </div>
+          <div className="rec-sql">
+            <span className="sql-kw drop">DROP</span>
+            <span className="sql-code">{rec.drop_index_sql}</span>
+          </div>
+
+          <div className="rec-body">
             <div>
-              <h3>Why this helps</h3>
-              <ul>{recommendation.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+              <div className="rec-sec-title">Why this helps</div>
+              <ul className="rec-list">
+                {rec.reasons.map((r) => <li key={r}>{r}</li>)}
+              </ul>
             </div>
             <div>
-              <h3>Query evidence</h3>
-              <ul>{recommendation.evidence.map((item) => <li key={`${item.feature}-${item.column}`}>{item.detail}</li>)}</ul>
+              <div className="rec-sec-title">Query evidence</div>
+              <ul className="rec-list">
+                {rec.evidence.map((item) => (
+                  <li key={`${item.feature}-${item.column}`}>{item.detail}</li>
+                ))}
+              </ul>
             </div>
           </div>
         </article>
