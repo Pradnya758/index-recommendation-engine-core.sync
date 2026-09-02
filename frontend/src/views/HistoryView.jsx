@@ -1,9 +1,141 @@
 import { useEffect, useState } from "react";
 import { clearHistory, deleteHistoryEntry, fetchHistory } from "../api";
 
+/* ── helpers ─────────────────────────────────────────────────── */
+
+function fmtTs(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  }).replace(",", " ·");
+}
+
 function confClass(c) {
   return `conf-badge conf-${c}`;
 }
+
+function matches(item, q) {
+  if (!q.trim()) return true;
+  const lq = q.toLowerCase();
+  const rec0 = item.rec?.recommendations?.[0];
+  return (
+    item.query.toLowerCase().includes(lq) ||
+    (item.rec?.analysis?.tables ?? []).some((t) => t.toLowerCase().includes(lq)) ||
+    (rec0?.columns ?? []).some((c) => c.toLowerCase().includes(lq)) ||
+    (rec0?.table ?? "").toLowerCase().includes(lq)
+  );
+}
+
+/* ── card ────────────────────────────────────────────────────── */
+
+function HistoryCard({ item, runNumber, onOpen, onDelete, deleting }) {
+  const rec0       = item.rec?.recommendations?.[0];
+  const tables     = item.rec?.analysis?.tables ?? [];
+  const planDetail = item.plan?.plan?.[0]?.detail ?? "";
+  const ts         = fmtTs(item.ts);
+
+  return (
+    <article className="hcard">
+      {/* ── top bar ── */}
+      <div className="hcard-topbar">
+        <span className="hcard-run">Run #{runNumber}</span>
+        <span className="hcard-ts">{ts}</span>
+        <button
+          className="hitem-del"
+          type="button"
+          title="Delete this entry"
+          disabled={deleting}
+          onClick={onDelete}
+          aria-label="Delete entry"
+        >
+          {deleting ? "…" : "✕"}
+        </button>
+      </div>
+
+      {/* ── SQL ── */}
+      <div className="hcard-section">
+        <span className="hcard-label">SQL</span>
+        <pre className="hcard-sql">{item.query}</pre>
+      </div>
+
+      {/* ── details grid ── */}
+      <div className="hcard-grid">
+        <div className="hcard-field">
+          <span className="hcard-label">Table{tables.length !== 1 ? "s" : ""}</span>
+          <div className="hcard-field-val">
+            {tables.length
+              ? tables.map((t) => (
+                  <span key={t} className="hitem-chip hitem-chip-blue">{t}</span>
+                ))
+              : <span className="hcard-none">—</span>}
+          </div>
+        </div>
+
+        {rec0 ? (
+          <>
+            <div className="hcard-field">
+              <span className="hcard-label">Recommended index</span>
+              <div className="hcard-field-val">
+                <span className="hitem-chip hitem-chip-cyan hcard-idx">
+                  ({rec0.columns.join(", ")})
+                </span>
+              </div>
+            </div>
+
+            <div className="hcard-field">
+              <span className="hcard-label">Confidence</span>
+              <div className="hcard-field-val">
+                <span className={confClass(rec0.confidence)}>{rec0.confidence}</span>
+              </div>
+            </div>
+
+            <div className="hcard-field">
+              <span className="hcard-label">Score</span>
+              <div className="hcard-field-val">
+                <span className="hcard-score-val">{rec0.score}</span>
+                <div className="hcard-score-bar-wrap">
+                  <div
+                    className="hcard-score-bar"
+                    style={{ width: `${Math.min(rec0.score, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="hcard-field hcard-field-span">
+            <span className="hcard-label">Recommendation</span>
+            <div className="hcard-field-val">
+              <span className="hitem-chip hitem-chip-green">No new index needed</span>
+            </div>
+          </div>
+        )}
+
+        {planDetail && (
+          <div className="hcard-field hcard-field-span">
+            <span className="hcard-label">Query plan</span>
+            <code className="hcard-plan">{planDetail}</code>
+          </div>
+        )}
+      </div>
+
+      {/* ── footer ── */}
+      <div className="hcard-footer">
+        <button
+          className="hcard-reopen"
+          type="button"
+          onClick={onOpen}
+        >
+          ↗ Reopen Analysis
+        </button>
+      </div>
+    </article>
+  );
+}
+
+/* ── view ────────────────────────────────────────────────────── */
 
 export default function HistoryView({ onOpen }) {
   const [entries, setEntries]   = useState([]);
@@ -16,8 +148,7 @@ export default function HistoryView({ onOpen }) {
     setLoading(true);
     setError("");
     try {
-      const data = await fetchHistory();
-      setEntries(data);
+      setEntries(await fetchHistory());
     } catch (e) {
       setError(e.message);
     } finally {
@@ -33,11 +164,8 @@ export default function HistoryView({ onOpen }) {
     try {
       await deleteHistoryEntry(id);
       setEntries((prev) => prev.filter((x) => x.id !== id));
-    } catch {
-      /* ignore */
-    } finally {
-      setDeleting(null);
-    }
+    } catch { /* ignore */ }
+    finally { setDeleting(null); }
   }
 
   async function handleClear() {
@@ -50,20 +178,23 @@ export default function HistoryView({ onOpen }) {
     }
   }
 
-  const filtered = entries.filter((e) =>
-    !search.trim() || e.query.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = entries.filter((e) => matches(e, search));
+
+  /* total count for run numbering — entries are newest-first from backend */
+  const total = entries.length;
 
   return (
     <div className="history-view">
       <div className="history-inner">
-        {/* Header */}
+
+        {/* ── page header ── */}
         <div className="history-page-hdr">
           <div>
-            <div className="eyebrow">Persistent</div>
+            <div className="eyebrow">Persistent · SQLite</div>
             <h1 className="history-page-title">Query History</h1>
             <p className="history-page-sub">
-              Every analysis is saved to the backend database. Click any entry to reopen it.
+              Every analysis is saved to the backend database. Click{" "}
+              <strong>Reopen Analysis</strong> on any card to restore it.
             </p>
           </div>
           {entries.length > 0 && (
@@ -73,104 +204,74 @@ export default function HistoryView({ onOpen }) {
           )}
         </div>
 
-        {/* Search */}
+        {/* ── search ── */}
         {entries.length > 0 && (
-          <input
-            className="history-search"
-            type="search"
-            placeholder="Search queries…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        )}
-
-        {/* States */}
-        {loading && (
-          <div className="history-empty">
-            <span className="spinner" />
-            <div className="history-empty-title">Loading history…</div>
+          <div className="hv-search-wrap">
+            <span className="hv-search-icon">🔍</span>
+            <input
+              className="history-search hv-search-input"
+              type="search"
+              placeholder="Search by SQL, table, or column…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search history"
+            />
+            {search && (
+              <span className="hv-search-count">
+                {filtered.length} of {total}
+              </span>
+            )}
           </div>
         )}
 
+        {/* ── loading ── */}
+        {loading && (
+          <div className="history-empty">
+            <span className="spinner" />
+            <div className="history-empty-title" style={{ marginTop: 12 }}>Loading history…</div>
+          </div>
+        )}
+
+        {/* ── error ── */}
         {!loading && error && (
           <div className="err-banner" role="alert">⚠ {error}</div>
         )}
 
+        {/* ── empty ── */}
         {!loading && !error && filtered.length === 0 && (
           <div className="history-empty">
-            <div className="history-empty-icon">🕑</div>
+            <div className="history-empty-icon">{search ? "🔎" : "🕑"}</div>
             <div className="history-empty-title">
-              {search ? "No matching queries" : "No history yet"}
+              {search ? "No matching analyses" : "No analyses yet"}
             </div>
             <div className="history-empty-desc">
               {search
-                ? "Try a different search term."
-                : "Run an analysis on the Analyze page — it will appear here automatically."}
+                ? "Try a different search term — SQL text, table name, or column name."
+                : "Run a query on the Analyze page to start building your history."}
             </div>
           </div>
         )}
 
-        {/* List */}
+        {/* ── list ── */}
         {!loading && !error && filtered.length > 0 && (
-          <div className="history-list">
+          <div className="hv-list">
             {filtered.map((item, i) => {
-              const rec0 = item.rec?.recommendations?.[0];
-              const tables = item.rec?.analysis?.tables ?? [];
-              const planDetail = item.plan?.plan?.[0]?.detail ?? "";
-              const ts = new Date(item.ts).toLocaleString();
-
+              /* run number: entry with highest id = run #total, descending */
+              const runNumber = total - entries.indexOf(item);
               return (
-                <div
+                <HistoryCard
                   key={item.id}
-                  className="history-item hitem-rich"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onOpen(item)}
-                  onKeyDown={(e) => e.key === "Enter" && onOpen(item)}
-                  style={{ animationDelay: `${i * 0.04}s` }}
-                >
-                  <div className="hitem-top">
-                    <span className="history-num">#{item.id}</span>
-                    <span className="hitem-ts">{ts}</span>
-                    <button
-                      className="hitem-del"
-                      type="button"
-                      title="Delete this entry"
-                      disabled={deleting === item.id}
-                      onClick={(e) => handleDelete(item.id, e)}
-                    >
-                      {deleting === item.id ? "…" : "✕"}
-                    </button>
-                  </div>
-
-                  <div className="history-query">{item.query}</div>
-
-                  <div className="hitem-meta">
-                    {tables.length > 0 && (
-                      <span className="hitem-chip hitem-chip-blue">
-                        {tables.join(", ")}
-                      </span>
-                    )}
-                    {rec0 ? (
-                      <>
-                        <span className="hitem-chip hitem-chip-cyan">
-                          {rec0.table}({rec0.columns.join(", ")})
-                        </span>
-                        <span className={confClass(rec0.confidence)}>{rec0.confidence}</span>
-                        <span className="hitem-score">score {rec0.score}</span>
-                      </>
-                    ) : (
-                      <span className="hitem-chip hitem-chip-green">No new index needed</span>
-                    )}
-                    {planDetail && (
-                      <span className="hitem-plan">{planDetail}</span>
-                    )}
-                  </div>
-                </div>
+                  item={item}
+                  runNumber={runNumber}
+                  onOpen={() => onOpen(item)}
+                  onDelete={(e) => handleDelete(item.id, e)}
+                  deleting={deleting === item.id}
+                />
               );
             })}
           </div>
         )}
+
       </div>
     </div>
   );

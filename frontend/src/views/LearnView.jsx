@@ -142,7 +142,7 @@ const CATS = [
 export default function LearnView() {
   const [search, setSearch]   = useState("");
   const [cat, setCat]         = useState("all");
-  const [open, setOpen]       = useState({});
+  const [open, setOpen]       = useState(null);
 
   const filtered = CONCEPTS.filter((c) => {
     const matchCat = cat === "all" || c.cat === cat;
@@ -152,7 +152,7 @@ export default function LearnView() {
   });
 
   function toggle(id) {
-    setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+    setOpen((prev) => (prev === id ? null : id));
   }
 
   return (
@@ -200,7 +200,7 @@ export default function LearnView() {
         <div className="learn-grid">
           {filtered.map((c, i) => (
             <div
-              className={`concept-card${open[c.id] ? " open" : ""}`}
+              className={`concept-card${open === c.id ? " open" : ""}`}
               key={c.id}
               style={{ animationDelay: `${i * 0.04}s` }}
             >
@@ -210,7 +210,7 @@ export default function LearnView() {
                   <div className="concept-title">{c.title}</div>
                   <div className="concept-short">{c.short}</div>
                 </div>
-                <span className="concept-toggle">{open[c.id] ? "▲" : "▼"}</span>
+                <span className="concept-toggle">{open === c.id ? "▲" : "▼"}</span>
               </div>
               <div className="concept-body">
                 <div className="concept-section">

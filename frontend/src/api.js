@@ -56,3 +56,21 @@ export function deleteHistoryEntry(id) {
 export function clearHistory() {
   return request("/history", { method: "DELETE" });
 }
+
+// ── AI Tutor ─────────────────────────────────────────────────────────────────
+
+export function explainAnalysis(rec, plan) {
+  return request("/explain", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rec, plan }),
+  });
+}
+
+export function askFollowup(question, rec, plan) {
+  return request("/explain/followup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, rec, plan }),
+  });
+}
