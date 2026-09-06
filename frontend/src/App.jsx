@@ -1,4 +1,28 @@
 import { useEffect, useState } from "react";
+import {
+  BarChart3,
+  Beaker,
+  BookOpen,
+  Bot,
+  BrainCircuit,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Code2,
+  Download,
+  FileCode2,
+  GraduationCap,
+  History,
+  Home,
+  Info,
+  Menu,
+  Moon,
+  Sparkles,
+  Sun,
+  TestTube2,
+  Users,
+  X,
+} from "lucide-react";
 
 import { analyzeQuery, getSchema, saveHistory } from "./api";
 import AnalysisPanel from "./components/AnalysisPanel";
@@ -11,6 +35,7 @@ import { EXAMPLES } from "./examples";
 import AiTutorView from "./views/AiTutorView";
 import AlgorithmView from "./views/AlgorithmView";
 import DoubtSolverView from "./views/DoubtSolverView";
+import DevelopedByView from "./views/DevelopedByView";
 import ExamplesView from "./views/ExamplesView";
 import HistoryView from "./views/HistoryView";
 import HomeView from "./views/HomeView";
@@ -23,36 +48,37 @@ import UserManualView from "./views/UserManualView";
 
 const NAV_GROUPS = [
   {
-    label: "Lab",
+    label: "Main",
     items: [
-      { id: "analyze",   icon: "⚡", label: "Analyze" },
-      { id: "visualize", icon: "📊", label: "Visualize" },
-      { id: "history",   icon: "🕑", label: "History" },
+      { id: "home", label: "Home", icon: Home },
+      { id: "analyze", label: "Analyze", icon: Beaker },
+      { id: "visualize", label: "Visualize", icon: BarChart3 },
     ],
   },
   {
     label: "Learn",
     items: [
-      { id: "learn",       icon: "📖", label: "Concepts" },
-      { id: "algorithm",   icon: "⚙️", label: "Algorithm" },
-      { id: "limitations", icon: "⚠️", label: "Limitations" },
-      { id: "examples",    icon: "🧪", label: "Examples" },
-      { id: "testing",     icon: "🧾", label: "Testing" },
-      { id: "aiusage",     icon: "🤖", label: "AI Usage" },
-      { id: "manual",      icon: "📘", label: "User Manual" },
+      { id: "learn", label: "Learn", icon: BookOpen },
+      { id: "examples", label: "Examples", icon: FileCode2 },
     ],
   },
   {
     label: "Practice",
     items: [
-      { id: "test",    icon: "✅", label: "Knowledge Test" },
-      { id: "doubts",  icon: "💬", label: "Doubt Solver" },
+      { id: "test", label: "Knowledge Test", icon: GraduationCap },
+      { id: "doubts", label: "Doubt Solver", icon: BrainCircuit },
+      { id: "tutor", label: "AI Tutor", icon: Bot },
     ],
   },
   {
-    label: "AI",
+    label: "Project",
     items: [
-      { id: "tutor", icon: "🤖", label: "AI Tutor" },
+      { id: "history", label: "History", icon: History },
+      { id: "testing", label: "Testing", icon: TestTube2 },
+      { id: "aiusage", label: "AI Usage", icon: Sparkles },
+      { id: "algorithm", label: "Algorithm", icon: Code2 },
+      { id: "limitations", label: "Limitations", icon: Info },
+      { id: "developed", label: "Developed By", icon: Users },
     ],
   },
 ];
@@ -60,6 +86,7 @@ const NAV_GROUPS = [
 export default function App() {
   const [page, setPage]               = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [light, setLight]             = useState(false);
   const [query, setQuery]             = useState(EXAMPLES[3].query);
   const [schema, setSchema]           = useState(null);
@@ -96,7 +123,12 @@ export default function App() {
   function navigate(target, preloadQuery) {
     if (preloadQuery) setQuery(preloadQuery);
     setPage(target);
-    if (window.innerWidth < 768) setSidebarOpen(false);
+    setSidebarOpen(false);
+  }
+
+  function openDownloads() {
+    navigate("analyze");
+    window.setTimeout(() => document.querySelector(".export-row")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
   }
 
   async function runAnalysis() {
@@ -120,85 +152,65 @@ export default function App() {
   }
 
   return (
-    <div className={`shell${sidebarOpen ? " sidebar-expanded" : ""}`}>
-
-      {/* ── HEADER ── */}
-      <header className="hdr">
-        <div className="hdr-brand-wrap">
-          <button
-            className="sidebar-toggle"
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {sidebarOpen ? "◀" : "☰"}
-          </button>
-          <a className="hdr-brand" href="#" onClick={(e) => { e.preventDefault(); setPage("home"); }}>
-            <div className="hdr-logo">IRE</div>
-            <div className="hdr-brand-text">
-              <span className="hdr-brand-name">Index Rec. Engine</span>
-              <span className="hdr-brand-sub">SQLite · Educational</span>
-            </div>
-          </a>
-        </div>
-        <div className="hdr-center">
-          <div className="hdr-status">
-            <span className="hdr-dot" />
-            Engine online
-          </div>
-        </div>
-        <div className="hdr-right">
-          <button
-            className="hdr-theme-btn"
-            type="button"
-            onClick={() => setLight((v) => !v)}
-            aria-label="Toggle theme"
-          >
-            {light ? "🌙 Dark" : "☀ Light"}
-          </button>
-        </div>
+    <div className={`shell lab-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarOpen ? " sidebar-open" : ""}`}>
+      <header className="mobile-header">
+        <button className="mobile-nav-toggle" type="button" onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-label="Open navigation">
+          <Menu size={20} />
+        </button>
+        <button className="mobile-brand" type="button" onClick={() => navigate("home")}>
+          <span>IRE</span>
+          <small>Index Recommendation Engine</small>
+        </button>
       </header>
 
-      {/* ── SIDEBAR ── */}
-      <nav className="sidebar" aria-label="Main navigation">
-        <div className="nav-section" style={{ marginBottom: 8 }}>
-          <button
-            className={`nav-btn${page === "home" ? " active" : ""}`}
-            onClick={() => navigate("home")}
-            type="button"
-            title="Home"
-          >
-            <span className="nav-icon">🏠</span>
-            <span className="nav-label">Home</span>
+      <aside className="lab-sidebar" aria-label="Application navigation">
+        <div className="sidebar-brand-row">
+          <button className="sidebar-brand" type="button" onClick={() => navigate("home")} aria-label="Index Recommendation Engine home">
+            <span className="sidebar-monogram">IRE</span>
+            <span className="sidebar-brand-copy">Index Recommendation <strong>Engine</strong></span>
+          </button>
+          <button className="sidebar-close" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
+        </div>
+
+        <div className="sidebar-status"><span /> Interactive DBMS laboratory</div>
+
+        <nav className="sidebar-nav">
+          {NAV_GROUPS.map((group) => (
+            <section className="sidebar-group" key={group.label} aria-labelledby={`nav-${group.label}`}>
+              <div className="sidebar-group-label" id={`nav-${group.label}`}>{group.label}</div>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button className={`sidebar-link${page === item.id ? " active" : ""}`} type="button" key={item.id} onClick={() => navigate(item.id)} title={sidebarCollapsed ? item.label : undefined} aria-current={page === item.id ? "page" : undefined}>
+                    <Icon size={17} strokeWidth={1.8} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </section>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <button className={`sidebar-link${page === "manual" ? " active" : ""}`} type="button" onClick={() => navigate("manual")} title={sidebarCollapsed ? "Help" : undefined}>
+            <CircleHelp size={17} strokeWidth={1.8} /><span>Help</span>
+          </button>
+          <button className="sidebar-link" type="button" onClick={openDownloads} title={sidebarCollapsed ? "Download" : undefined}>
+            <Download size={17} strokeWidth={1.8} /><span>Download</span>
+          </button>
+          <button className="sidebar-link theme-control" type="button" onClick={() => setLight((value) => !value)} title={sidebarCollapsed ? (light ? "Night mode" : "Day mode") : undefined}>
+            {light ? <Moon size={17} strokeWidth={1.8} /> : <Sun size={17} strokeWidth={1.8} />}
+            <span>{light ? "Night mode" : "Day mode"}</span>
+          </button>
+          <button className="sidebar-collapse" type="button" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            {sidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+            <span>Collapse</span>
           </button>
         </div>
-        {NAV_GROUPS.map((group) => (
-          <div key={group.label} className="nav-section">
-            <div className="nav-group-label">{group.label}</div>
-            {group.items.map((item) => (
-              <button
-                key={item.id}
-                className={`nav-btn${page === item.id ? " active" : ""}`}
-                onClick={() => navigate(item.id)}
-                type="button"
-                title={item.label}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span className="nav-label">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        ))}
-        <div className="sidebar-foot">
-          <span className="sidebar-foot-text">
-            <strong>Rule-based</strong> · No AI · Deterministic
-          </span>
-        </div>
-      </nav>
+      </aside>
 
-      {/* ── OVERLAY (mobile) ── */}
       {sidebarOpen && (
-        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
+        <div className="nav-overlay" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
       )}
 
       {/* ── WORKSPACE ── */}
@@ -385,6 +397,7 @@ export default function App() {
         {page === "testing"  && <TestingView />}
         {page === "aiusage"  && <AiUsageView />}
         {page === "manual"   && <UserManualView onNavigate={navigate} />}
+        {page === "developed" && <DevelopedByView />}
 
       </main>
     </div>

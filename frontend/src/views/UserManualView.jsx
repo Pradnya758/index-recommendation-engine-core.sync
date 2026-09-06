@@ -5,7 +5,7 @@ const STEPS = [
     n: 1,
     icon: "🏠",
     title: "Open Home",
-    click: "Click the IRE logo or the Home button (🏠) in the sidebar.",
+    click: "Click the IRE. wordmark in the top navigation.",
     expect: "The Home page loads with an animated database network, a headline, and two call-to-action buttons.",
     meaning: "The Home page gives you an overview of what the engine does and links to the main features.",
     tip: null,
@@ -23,7 +23,7 @@ const STEPS = [
     n: 3,
     icon: "🧪",
     title: "Choose an Example or Enter SQL",
-    click: "Go to Analyze (⚡) in the sidebar. Use the 'Load example' dropdown to pick a pre-built query, or type your own SELECT query in the editor.",
+    click: "Go to Analyze in the top navigation. Use the 'Load example' dropdown to pick a pre-built query, or type your own SELECT query in the editor.",
     expect: "The textarea fills with the selected query. Line numbers update automatically.",
     meaning: "Five examples cover the main scenarios: WHERE filter, JOIN lookup, ORDER BY, composite filter, and a query where no new index is needed.",
     tip: "Only SELECT queries are accepted. The Run Analysis button is disabled and a yellow warning appears if the input is empty or starts with INSERT, UPDATE, DELETE, DROP, ALTER, or CREATE.",
@@ -68,7 +68,7 @@ const STEPS = [
     n: 8,
     icon: "📊",
     title: "Explore Visualizations",
-    click: "Click the 'Visualizations' tab, or go to Visualize (📊) in the sidebar. Choose from: Execution Flow, Table Scan, B+ Tree, Plan Comparison.",
+    click: "Click the 'Visualizations' tab, or go to Visualize in the top navigation. Choose from: Execution Flow, Table Scan, B+ Tree, Plan Comparison.",
     expect: "Interactive animated diagrams appear. Use the playback controls (▶ / ⏸ / ⏮ / ⏭) to step through each animation.",
     meaning: "Execution Flow shows the query pipeline. Table Scan compares full-scan vs index-lookup row counts. B+ Tree shows how the index stores values for O(log n) lookup. Plan Comparison shows the actual EXPLAIN QUERY PLAN output alongside a conceptual indexed path.",
     tip: "All visualizations are educational models. The B+ Tree and the proposed indexed plan are labelled 'conceptual' — they illustrate the concept, not exact SQLite internals.",
@@ -77,7 +77,7 @@ const STEPS = [
     n: 9,
     icon: "🤖",
     title: "Use AI Tutor",
-    click: "Go to AI Tutor (🤖) in the sidebar. Click 'Explain this analysis' to get a plain-English explanation of the current recommendation.",
+    click: "Go to AI Tutor in the top navigation. Click 'Explain this analysis' to get a plain-English explanation of the current recommendation.",
     expect: "A structured explanation appears with sections: Query Summary, Features Detected, Why This Index, Simple Explanation, Technical Explanation, Trade-offs, and Query Plan Meaning.",
     meaning: "The AI Tutor uses a local rule-based explanation generator by default (no external API key needed). If an OpenAI API key is configured, it uses GPT instead. You can also type follow-up questions.",
     tip: "Run an analysis first — the AI Tutor needs a result to explain. If no analysis has been run, it will prompt you to go to Analyze.",
@@ -86,7 +86,7 @@ const STEPS = [
     n: 10,
     icon: "🕑",
     title: "View History",
-    click: "Go to History (🕑) in the sidebar.",
+    click: "Go to History in the top navigation.",
     expect: "A list of all previously run analyses appears, newest first, each showing the query, timestamp, and number of recommendations.",
     meaning: "Every successful analysis is automatically saved to the history store. You can browse past queries without re-running them.",
     tip: null,
@@ -113,7 +113,7 @@ const STEPS = [
     n: 13,
     icon: "📖",
     title: "Use Learn / Terminology",
-    click: "Go to Concepts (📖) in the Learn section of the sidebar. Use the search box or category filter (Core, Structures, SQL Clauses, Advanced) to find a concept.",
+    click: "Go to Learn in the top navigation. Use the search box or category filter to find a concept.",
     expect: "Concept cards appear. Click any card to expand it and see: definition, why it matters, a SQL example, and how it relates to this project.",
     meaning: "16 concepts are covered: index, table scan, index scan, B-tree, B+ tree, primary key, composite index, query plan, EXPLAIN, selectivity, WHERE, JOIN, ORDER BY, GROUP BY, covering index, and trade-offs.",
     tip: null,
@@ -122,7 +122,7 @@ const STEPS = [
     n: 14,
     icon: "✅",
     title: "Use Knowledge Test",
-    click: "Go to Knowledge Test (✅) in the Practice section of the sidebar.",
+    click: "Go to Practice in the top navigation.",
     expect: "A set of multiple-choice questions about database indexing concepts appears.",
     meaning: "The knowledge test lets you check your understanding of the concepts covered in this project. Each question has immediate feedback.",
     tip: null,
@@ -131,7 +131,7 @@ const STEPS = [
     n: 15,
     icon: "💬",
     title: "Use Doubt Solver",
-    click: "Go to Doubt Solver (💬) in the Practice section of the sidebar.",
+    click: "Open More in the top navigation, then choose Doubt Solver.",
     expect: "A question-and-answer interface appears. Type a question about database indexing.",
     meaning: "The Doubt Solver answers common questions about indexes, query plans, and the recommendation engine. It uses the same local explanation engine as the AI Tutor.",
     tip: "For deeper explanations tied to a specific query result, use the AI Tutor instead.",
@@ -161,7 +161,7 @@ export default function UserManualView({ onNavigate }) {
       <div className="um-hero">
         <div className="um-hero-icon">📘</div>
         <div>
-          <div className="um-hero-title">User Manual</div>
+          <div className="um-hero-title">How to use the lab</div>
           <div className="um-hero-sub">
             Step-by-step guide to every feature · Beginner-friendly · 15 stages
           </div>

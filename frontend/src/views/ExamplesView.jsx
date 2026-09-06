@@ -148,7 +148,7 @@ export default function ExamplesView({ onOpen }) {
                       <span className="ex-diff-label">{m.difficulty}</span>
                     </div>
                   </div>
-                  <div className="ex-card-num">Example {i + 1}</div>
+                  <div className="ex-card-num">Lab Experiment {String(i + 1).padStart(2, "0")}</div>
                   <div className="ex-card-title">{ex.label}</div>
                   <div className="ex-card-demonstrates">{m.demonstrates}</div>
                 </div>
@@ -196,7 +196,7 @@ export default function ExamplesView({ onOpen }) {
                     type="button"
                     onClick={() => onOpen(ex.query)}
                   >
-                    ▶ Try this example
+                    Try Experiment →
                   </button>
                 </div>
               </div>

@@ -204,15 +204,21 @@ export default function LearnView() {
               key={c.id}
               style={{ animationDelay: `${i * 0.04}s` }}
             >
-              <div className="concept-hdr" onClick={() => toggle(c.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && toggle(c.id)}>
+              <button
+                className="concept-hdr"
+                type="button"
+                onClick={() => toggle(c.id)}
+                aria-expanded={open === c.id}
+                aria-controls={`concept-body-${c.id}`}
+              >
                 <span className="concept-icon">{c.icon}</span>
                 <div style={{ flex: 1 }}>
                   <div className="concept-title">{c.title}</div>
                   <div className="concept-short">{c.short}</div>
                 </div>
                 <span className="concept-toggle">{open === c.id ? "▲" : "▼"}</span>
-              </div>
-              <div className="concept-body">
+              </button>
+              <div className="concept-body" id={`concept-body-${c.id}`}>
                 <div className="concept-section">
                   <div className="concept-section-title">Why it matters</div>
                   <div className="concept-section-text">{c.why}</div>
