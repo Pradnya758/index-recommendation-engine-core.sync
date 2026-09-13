@@ -2,15 +2,6 @@ import { useState } from "react";
 
 const STEPS = [
   {
-    n: 1,
-    icon: "🏠",
-    title: "Open Home",
-    click: "Click the IRE. wordmark in the top navigation.",
-    expect: "The Home page loads with an animated database network, a headline, and two call-to-action buttons.",
-    meaning: "The Home page gives you an overview of what the engine does and links to the main features.",
-    tip: null,
-  },
-  {
     n: 2,
     icon: "📖",
     title: "Understand the Purpose",
@@ -62,13 +53,13 @@ const STEPS = [
     click: "Click the 'Analysis Steps' tab in the centre panel.",
     expect: "An 8-step walkthrough appears: SQL Input → Parsing → Feature Extraction → Schema Inspection → Candidate Generation → Filtering → Scoring → Output.",
     meaning: "Each step explains what the engine did at that stage, what it found, and why. This is the educational core of the application — it makes the recommendation transparent and explainable.",
-    tip: "Click 'Go to Visualizations' at the bottom of the steps to jump directly to the visual diagrams.",
+    tip: "Open Visualize from the sidebar when you are ready to interact with the visual diagrams.",
   },
   {
     n: 8,
     icon: "📊",
     title: "Explore Visualizations",
-    click: "Click the 'Visualizations' tab, or go to Visualize in the top navigation. Choose from: Execution Flow, Table Scan, B+ Tree, Plan Comparison.",
+    click: "Open Visualize from the sidebar. Choose from: Execution Flow, Table Scan, B+ Tree, Plan Comparison.",
     expect: "Interactive animated diagrams appear. Use the playback controls (▶ / ⏸ / ⏮ / ⏭) to step through each animation.",
     meaning: "Execution Flow shows the query pipeline. Table Scan compares full-scan vs index-lookup row counts. B+ Tree shows how the index stores values for O(log n) lookup. Plan Comparison shows the actual EXPLAIN QUERY PLAN output alongside a conceptual indexed path.",
     tip: "All visualizations are educational models. The B+ Tree and the proposed indexed plan are labelled 'conceptual' — they illustrate the concept, not exact SQLite internals.",
@@ -97,7 +88,7 @@ const STEPS = [
     title: "Reopen a Previous Analysis",
     click: "In the History page, click the 'Open' button on any entry.",
     expect: "The application navigates to the Analyze page with the query, recommendations, and query plan from that history entry restored.",
-    meaning: "You can pick up exactly where you left off — all tabs (Recommendations, Steps, Analysis, Visualizations) will show the restored data.",
+    meaning: "You can pick up exactly where you left off — Recommendations, Analysis Steps, and Query Analysis show the restored data, which is also available on Visualize.",
     tip: null,
   },
   {
@@ -122,19 +113,10 @@ const STEPS = [
     n: 14,
     icon: "✅",
     title: "Use Knowledge Test",
-    click: "Go to Practice in the top navigation.",
+    click: "Open Knowledge Test under Practice in the sidebar.",
     expect: "A set of multiple-choice questions about database indexing concepts appears.",
     meaning: "The knowledge test lets you check your understanding of the concepts covered in this project. Each question has immediate feedback.",
     tip: null,
-  },
-  {
-    n: 15,
-    icon: "💬",
-    title: "Use Doubt Solver",
-    click: "Open More in the top navigation, then choose Doubt Solver.",
-    expect: "A question-and-answer interface appears. Type a question about database indexing.",
-    meaning: "The Doubt Solver answers common questions about indexes, query plans, and the recommendation engine. It uses the same local explanation engine as the AI Tutor.",
-    tip: "For deeper explanations tied to a specific query result, use the AI Tutor instead.",
   },
 ];
 
@@ -144,11 +126,9 @@ const QUICK_LINKS = [
   { label: "📖 Concepts",       page: "learn" },
   { label: "⚙️ Algorithm",      page: "algorithm" },
   { label: "⚠️ Limitations",    page: "limitations" },
-  { label: "🧾 Testing",        page: "testing" },
-  { label: "🤖 AI Usage Log",   page: "aiusage" },
+  { label: "🤖 Testing & AI Usage", page: "testing" },
   { label: "🕑 History",        page: "history" },
   { label: "✅ Knowledge Test", page: "test" },
-  { label: "💬 Doubt Solver",   page: "doubts" },
 ];
 
 export default function UserManualView({ onNavigate }) {
@@ -163,7 +143,7 @@ export default function UserManualView({ onNavigate }) {
         <div>
           <div className="um-hero-title">How to use the lab</div>
           <div className="um-hero-sub">
-            Step-by-step guide to every feature · Beginner-friendly · 15 stages
+            Step-by-step guide to every feature · Beginner-friendly · 14 stages
           </div>
         </div>
       </div>
@@ -192,7 +172,7 @@ export default function UserManualView({ onNavigate }) {
           {[
             { icon: "⚡", title: "Lab",      desc: "Analyze SQL queries, explore visualizations, browse history." },
             { icon: "📖", title: "Learn",    desc: "Concepts, algorithm pipeline, limitations, examples, testing, AI usage, this manual." },
-            { icon: "🎯", title: "Practice", desc: "Knowledge test and doubt solver to reinforce understanding." },
+            { icon: "🎯", title: "Practice", desc: "Knowledge tests and examples to reinforce understanding." },
             { icon: "🤖", title: "AI",       desc: "AI Tutor for plain-English explanations of any analysis result." },
           ].map((g) => (
             <div key={g.title} className="um-overview-card">

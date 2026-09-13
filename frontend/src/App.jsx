@@ -4,19 +4,17 @@ import {
   Beaker,
   BookOpen,
   Bot,
-  BrainCircuit,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
   Code2,
-  Download,
   FileCode2,
   GraduationCap,
   History,
-  Home,
   Info,
   Menu,
   Moon,
+  Library,
   Sparkles,
   Sun,
   TestTube2,
@@ -34,7 +32,6 @@ import VisualizationsPanel from "./components/VisualizationsPanel";
 import { EXAMPLES } from "./examples";
 import AiTutorView from "./views/AiTutorView";
 import AlgorithmView from "./views/AlgorithmView";
-import DoubtSolverView from "./views/DoubtSolverView";
 import DevelopedByView from "./views/DevelopedByView";
 import ExamplesView from "./views/ExamplesView";
 import HistoryView from "./views/HistoryView";
@@ -42,6 +39,7 @@ import HomeView from "./views/HomeView";
 import KnowledgeTestView from "./views/KnowledgeTestView";
 import LearnView from "./views/LearnView";
 import LimitationsView from "./views/LimitationsView";
+import ReferencesView from "./views/ReferencesView";
 import TestingView from "./views/TestingView";
 import AiUsageView from "./views/AiUsageView";
 import UserManualView from "./views/UserManualView";
@@ -50,23 +48,21 @@ const NAV_GROUPS = [
   {
     label: "Main",
     items: [
-      { id: "home", label: "Home", icon: Home },
       { id: "analyze", label: "Analyze", icon: Beaker },
       { id: "visualize", label: "Visualize", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "Learn",
-    items: [
-      { id: "learn", label: "Learn", icon: BookOpen },
-      { id: "examples", label: "Examples", icon: FileCode2 },
     ],
   },
   {
     label: "Practice",
     items: [
       { id: "test", label: "Knowledge Test", icon: GraduationCap },
-      { id: "doubts", label: "Doubt Solver", icon: BrainCircuit },
+      { id: "examples", label: "Examples", icon: FileCode2 },
+    ],
+  },
+  {
+    label: "Learn",
+    items: [
+      { id: "learn", label: "Learn", icon: BookOpen },
       { id: "tutor", label: "AI Tutor", icon: Bot },
     ],
   },
@@ -74,10 +70,10 @@ const NAV_GROUPS = [
     label: "Project",
     items: [
       { id: "history", label: "History", icon: History },
-      { id: "testing", label: "Testing", icon: TestTube2 },
-      { id: "aiusage", label: "AI Usage", icon: Sparkles },
+      { id: "testing", label: "Testing & AI Usage", icon: TestTube2 },
       { id: "algorithm", label: "Algorithm", icon: Code2 },
       { id: "limitations", label: "Limitations", icon: Info },
+      { id: "references", label: "References", icon: Library },
       { id: "developed", label: "Developed By", icon: Users },
     ],
   },
@@ -98,6 +94,7 @@ export default function App() {
   const [vizTab, setVizTab]           = useState("flow");
   const [lineCount, setLineCount]     = useState(1);
   const [centerTab, setCenterTab]     = useState("results");
+  const [projectTab, setProjectTab]   = useState("testing");
   const [inlineError, setInlineError] = useState("");
 
   useEffect(() => {
@@ -126,11 +123,6 @@ export default function App() {
     setSidebarOpen(false);
   }
 
-  function openDownloads() {
-    navigate("analyze");
-    window.setTimeout(() => document.querySelector(".export-row")?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
-  }
-
   async function runAnalysis() {
     if (inlineError) { setError(inlineError); return; }
     if (!query.trim()) { setError("Enter a SQL query before running analysis."); return; }
@@ -153,26 +145,32 @@ export default function App() {
 
   return (
     <div className={`shell lab-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}${sidebarOpen ? " sidebar-open" : ""}`}>
-      <header className="mobile-header">
+      <header className="global-header">
         <button className="mobile-nav-toggle" type="button" onClick={() => setSidebarOpen(true)} aria-expanded={sidebarOpen} aria-label="Open navigation">
           <Menu size={20} />
         </button>
-        <button className="mobile-brand" type="button" onClick={() => navigate("home")}>
-          <span>IRE</span>
-          <small>Index Recommendation Engine</small>
+        <button className="global-brand" type="button" onClick={() => navigate("home")} aria-label="Index Recommendation Engine home">
+          <span className="global-brand-mark">IRE</span>
+          <span className="global-brand-copy">Index Recommendation <strong>Engine</strong></span>
+        </button>
+        <div className="global-status"><span /> Interactive DBMS laboratory</div>
+        <button
+          className="theme-toggle"
+          type="button"
+          onClick={() => setLight((value) => !value)}
+          aria-label={`Switch to ${light ? "dark" : "light"} mode`}
+          aria-pressed={light}
+          title={`Switch to ${light ? "dark" : "light"} mode`}
+        >
+          <Sun size={14} aria-hidden="true" />
+          <span className="theme-toggle-track" aria-hidden="true"><i /></span>
+          <Moon size={14} aria-hidden="true" />
+          <span className="theme-toggle-label">{light ? "Light" : "Dark"}</span>
         </button>
       </header>
 
       <aside className="lab-sidebar" aria-label="Application navigation">
-        <div className="sidebar-brand-row">
-          <button className="sidebar-brand" type="button" onClick={() => navigate("home")} aria-label="Index Recommendation Engine home">
-            <span className="sidebar-monogram">IRE</span>
-            <span className="sidebar-brand-copy">Index Recommendation <strong>Engine</strong></span>
-          </button>
-          <button className="sidebar-close" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
-        </div>
-
-        <div className="sidebar-status"><span /> Interactive DBMS laboratory</div>
+        <button className="sidebar-close" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={19} /></button>
 
         <nav className="sidebar-nav">
           {NAV_GROUPS.map((group) => (
@@ -192,15 +190,8 @@ export default function App() {
         </nav>
 
         <div className="sidebar-bottom">
-          <button className={`sidebar-link${page === "manual" ? " active" : ""}`} type="button" onClick={() => navigate("manual")} title={sidebarCollapsed ? "Help" : undefined}>
+          <button className={`sidebar-link${page === "manual" ? " active" : ""}`} type="button" onClick={() => navigate("manual")} title={sidebarCollapsed ? "Help" : undefined} aria-current={page === "manual" ? "page" : undefined}>
             <CircleHelp size={17} strokeWidth={1.8} /><span>Help</span>
-          </button>
-          <button className="sidebar-link" type="button" onClick={openDownloads} title={sidebarCollapsed ? "Download" : undefined}>
-            <Download size={17} strokeWidth={1.8} /><span>Download</span>
-          </button>
-          <button className="sidebar-link theme-control" type="button" onClick={() => setLight((value) => !value)} title={sidebarCollapsed ? (light ? "Night mode" : "Day mode") : undefined}>
-            {light ? <Moon size={17} strokeWidth={1.8} /> : <Sun size={17} strokeWidth={1.8} />}
-            <span>{light ? "Night mode" : "Day mode"}</span>
           </button>
           <button className="sidebar-collapse" type="button" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {sidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
@@ -215,7 +206,6 @@ export default function App() {
 
       {/* ── WORKSPACE ── */}
       <main className="workspace">
-
         {page === "home" && <HomeView onNavigate={navigate} />}
 
         {page === "analyze" && (
@@ -280,7 +270,6 @@ export default function App() {
                 <button className={`az-tab${centerTab === "results"  ? " active" : ""}`} onClick={() => setCenterTab("results")}>Recommendations</button>
                 <button className={`az-tab${centerTab === "steps"    ? " active" : ""}`} onClick={() => setCenterTab("steps")}>Analysis Steps</button>
                 <button className={`az-tab${centerTab === "analysis" ? " active" : ""}`} onClick={() => setCenterTab("analysis")}>Query Analysis</button>
-                <button className={`az-tab${centerTab === "viz"      ? " active" : ""}`} onClick={() => setCenterTab("viz")}>Visualizations</button>
               </div>
               <div className="az-content">
                 {centerTab === "results" && (
@@ -304,7 +293,7 @@ export default function App() {
                       <div className="az-empty-desc">Run a query to walk through the step-by-step explanation.</div>
                     </div>
                   ) : (
-                    <AnalysisSteps result={result} plan={plan} query={query} schema={schema} onGoViz={() => setCenterTab("viz")} />
+                    <AnalysisSteps result={result} plan={plan} query={query} schema={schema} />
                   )
                 )}
                 {centerTab === "analysis" && (
@@ -316,17 +305,6 @@ export default function App() {
                     </div>
                   ) : (
                     <AnalysisPanel result={result} plan={plan} />
-                  )
-                )}
-                {centerTab === "viz" && (
-                  !result ? (
-                    <div className="az-empty">
-                      <div className="az-empty-icon">📊</div>
-                      <div className="az-empty-title">No visualization yet</div>
-                      <div className="az-empty-desc">Run a query first, then explore visualizations.</div>
-                    </div>
-                  ) : (
-                    <VisualizationsPanel result={result} plan={plan} query={query} activeTab={vizTab} onTabChange={setVizTab} />
                   )
                 )}
               </div>
@@ -390,12 +368,23 @@ export default function App() {
         {page === "learn"        && <LearnView />}
         {page === "algorithm"    && <AlgorithmView />}
         {page === "limitations"  && <LimitationsView />}
+        {page === "references"   && <ReferencesView />}
         {page === "test"     && <KnowledgeTestView />}
-        {page === "doubts"   && <DoubtSolverView result={result} plan={plan} />}
         {page === "tutor"    && <AiTutorView result={result} plan={plan} onGoAnalyze={() => setPage("analyze")} />}
         {page === "examples" && <ExamplesView onOpen={(q) => navigate("analyze", q)} />}
-        {page === "testing"  && <TestingView />}
-        {page === "aiusage"  && <AiUsageView />}
+        {page === "testing"  && (
+          <div className="project-combined-view">
+            <div className="project-view-switch" role="tablist" aria-label="Testing and AI usage views">
+              <button type="button" role="tab" aria-selected={projectTab === "testing"} className={projectTab === "testing" ? "active" : ""} onClick={() => setProjectTab("testing")}>
+                <TestTube2 size={16} /> Testing
+              </button>
+              <button type="button" role="tab" aria-selected={projectTab === "aiusage"} className={projectTab === "aiusage" ? "active" : ""} onClick={() => setProjectTab("aiusage")}>
+                <Sparkles size={16} /> AI Usage
+              </button>
+            </div>
+            {projectTab === "testing" ? <TestingView /> : <AiUsageView />}
+          </div>
+        )}
         {page === "manual"   && <UserManualView onNavigate={navigate} />}
         {page === "developed" && <DevelopedByView />}
 

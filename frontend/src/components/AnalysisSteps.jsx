@@ -232,7 +232,7 @@ function StepBody({ step, result, plan, query, schema }) {
             </div>
           ))}
         </div>
-        <p className="as-note">Switch to the Visualizations tab or the Visualize page to interact with these diagrams.</p>
+        <p className="as-note">Open the dedicated Visualize page to interact with these diagrams.</p>
       </div>
     );
   }
@@ -240,7 +240,7 @@ function StepBody({ step, result, plan, query, schema }) {
   return null;
 }
 
-export default function AnalysisSteps({ result, plan, query, schema, onGoViz }) {
+export default function AnalysisSteps({ result, plan, query, schema }) {
   const [step, setStep]       = useState(0);
   const [playing, setPlaying] = useState(false);
   const [animKey, setAnimKey] = useState(0);

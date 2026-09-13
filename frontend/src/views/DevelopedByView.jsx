@@ -1,7 +1,20 @@
+import pradnyaPhoto from "../assets/pradnya-lakshmi-j-r.png";
+import rindhuPhoto from "../assets/rindhu-anchuri.png";
+
 export default function DevelopedByView() {
   const members = [
-    { name: "Pradnya Lakshmi J R", registerNumber: "25BCE5165" },
-    { name: "Rindhu Anchuri", registerNumber: "25BCE1800" },
+    {
+      name: "Pradnya Lakshmi J R",
+      registerNumber: "25BCE5165",
+      photo: pradnyaPhoto,
+      photoClassName: "credits-photo-pradnya",
+    },
+    {
+      name: "Rindhu Anchuri",
+      registerNumber: "25BCE1800",
+      photo: rindhuPhoto,
+      photoClassName: "credits-photo-rindhu",
+    },
   ];
 
   return (
@@ -13,14 +26,17 @@ export default function DevelopedByView() {
         </header>
 
         <section className="credits-roster" aria-label="Project team">
-          {members.map((member, index) => (
+          {members.map((member) => (
             <article className="credits-profile" key={member.registerNumber}>
-              <div className="credits-avatar" aria-label={`Photo placeholder for ${member.name}`}>
-                <span>Photo</span>
+              <div className="credits-avatar">
+                <img
+                  className={member.photoClassName}
+                  src={member.photo}
+                  alt={`${member.name}, project developer`}
+                />
               </div>
-              <div className="credits-member-index">0{index + 1}</div>
               <h2>{member.name}</h2>
-              <p>{member.registerNumber}</p>
+              <p className="credits-register">{member.registerNumber}</p>
             </article>
           ))}
         </section>
