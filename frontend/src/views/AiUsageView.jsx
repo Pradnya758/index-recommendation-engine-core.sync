@@ -34,6 +34,27 @@ export default function AiUsageView() {
         </p>
       </section>
 
+      <section className="au-statement" aria-labelledby="ai-tools-heading">
+        <h2 id="ai-tools-heading">AI Tools Used</h2>
+        <ul className="au-responsibility-list">
+          <li><strong>ChatGPT</strong> — Prompting, debugging guidance, and directing coding tasks to other AI tools.</li>
+          <li><strong>Claude AI</strong> — UI/UX design review and frontend design corrections.</li>
+          <li><strong>OpenCode</strong> — Repository-level coding assistance and implementation/refinement.</li>
+          <li><strong>Amazon Q Developer</strong> — Coding, debugging, and frontend/backend implementation assistance.</li>
+          <li><strong>GPT in VS Code / GitHub Copilot</strong> — Direct coding assistance, bug fixes, UI corrections, and final code refinements.</li>
+        </ul>
+      </section>
+
+      <section className="au-statement" aria-labelledby="ai-note-heading">
+        <h2 id="ai-note-heading">Important Note</h2>
+        <p>
+          The project concept, DBMS concepts, requirements analysis, system architecture,
+          recommendation methodology, major design decisions, and final validation were developed
+          by the team. AI tools were used selectively as development assistants for specific coding,
+          debugging, and design-related tasks.
+        </p>
+      </section>
+
       <section className="au-responsibility" aria-labelledby="developer-responsibility-heading">
         <div className="au-responsibility-heading">
           <p className="au-section-number">Core accountability</p>
