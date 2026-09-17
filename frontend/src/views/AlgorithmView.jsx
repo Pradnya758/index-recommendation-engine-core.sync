@@ -108,10 +108,10 @@ const PIPELINE = [
     purpose: "Assign a numeric score to each surviving candidate and derive confidence.",
     input: "List of non-rejected _Candidate objects",
     output: "Sorted list of IndexRecommendation with score, confidence, reasons, evidence",
-    algo: "Additive scoring: equality +45, join +35, range +25, order_by/group_by +15, composite +65. Score capped at 100. Sorted descending by score.",
+    algo: "Project-defined scoring: equality 45, join 35, range 25, order_by/group_by 15, composite 65. Sorted descending by score.",
     complexity: "O(c log c)",
     complexityNote: "c = number of surviving candidates. Dominated by the sort step.",
-    detail: "Scores accumulate during candidate generation (steps 3–5). After filtering, scores are capped at 100. Confidence is derived: score ≥ 65 → high, score ≥ 35 → medium, else low. The final list is sorted by (-score, table, columns) for deterministic output. The scoring weights are heuristic — they reflect common DBA intuition about which query features most benefit from indexing, not empirical measurements.",
+    detail: "Each candidate is scored from its detected query-feature type. Composite candidates receive exactly 65 without evidence, selectivity, or query-plan bonuses. Confidence is a separate label derived from score thresholds: score ≥ 65 → high, score ≥ 35 → medium, else low. The final list is sorted by (-score, table, columns) for deterministic output. These weights are project-defined educational heuristics, not empirical measurements.",
     rule: true,
   },
   {
@@ -280,9 +280,10 @@ export default function AlgorithmView() {
           {openSection === "scoring" && (
             <div className="algo-section-body">
               <p className="algo-body-text">
-                Scores are additive and heuristic. They reflect common DBA intuition about
-                which query features most benefit from indexing. They are <strong>not</strong> derived
-                from empirical measurements or query cost models. The final score is capped at 100.
+                Scores are project-defined educational heuristics based on detected query features.
+                A composite candidate receives exactly 65. Scores are <strong>not</strong> derived from
+                datasets, machine learning, selectivity, benchmarks, measured performance, or query cost models.
+                Confidence is displayed separately from score.
               </p>
               <div className="algo-score-table">
                 <div className="algo-score-hdr">

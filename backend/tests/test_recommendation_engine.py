@@ -31,6 +31,8 @@ def test_recommends_indexes_for_join_columns(schema):
         schema,
     )
     assert ("orders", ("product_id",)) in rec_cols(result)
+    orders_join = next(r for r in result.recommendations if r.table == "orders" and r.columns == ["product_id"])
+    assert orders_join.score == 35
     # products.product_id is PK — must be rejected, not recommended
     assert ("products", ("product_id",)) not in rec_cols(result)
     assert any(c.columns == ["product_id"] and "primary key" in c.reason for c in result.rejected_candidates)
@@ -42,6 +44,7 @@ def test_recommends_index_for_order_by(schema):
     result = build_recommendations("SELECT * FROM orders ORDER BY order_date DESC", schema)
     assert ("orders", ("order_date",)) in rec_cols(result)
     assert result.recommendations[0].evidence[0].feature == "order_by"
+    assert result.recommendations[0].score == 15
 
 
 # ── GROUP BY ──────────────────────────────────────────────────────────────────
@@ -50,6 +53,13 @@ def test_extracts_group_by_and_recommends_index(schema):
     result = build_recommendations("SELECT status, COUNT(*) FROM orders GROUP BY status", schema)
     assert result.analysis.group_by_columns[0].model_dump() == {"table": "orders", "column": "status"}
     assert ("orders", ("status",)) in rec_cols(result)
+    assert result.recommendations[0].score == 15
+
+
+def test_range_filter_uses_project_score(schema):
+    result = build_recommendations("SELECT * FROM orders WHERE order_date >= '2025-01-01'", schema)
+    assert result.recommendations[0].columns == ["order_date"]
+    assert result.recommendations[0].score == 25
 
 
 # ── TC-10: Composite ──────────────────────────────────────────────────────────
@@ -64,6 +74,23 @@ def test_recommends_composite_index_for_equality_and_range(schema):
     assert composite.score == 65
     assert composite.confidence == "high"
     assert composite.create_index_sql == 'CREATE INDEX "idx_orders_status_order_date" ON "orders" ("status", "order_date");'
+
+
+def test_multiple_equality_composite_uses_fixed_project_score(schema):
+    result = build_recommendations(
+        "SELECT * FROM orders WHERE customer_id = 10 AND status = 'paid' ORDER BY order_date",
+        schema,
+    )
+    composite = next(r for r in result.recommendations if r.columns == ["customer_id", "status"])
+    order_by = next(r for r in result.recommendations if r.columns == ["order_date"])
+    assert composite.score == 65
+    assert order_by.score == 15
+    assert all(r.score not in {75, 33} for r in result.recommendations)
+
+
+def test_plain_select_produces_no_recommendation(schema):
+    result = build_recommendations("SELECT * FROM students", schema)
+    assert result.recommendations == []
 
 
 # ── TC-11: No-useful-index (PK lookup) ───────────────────────────────────────

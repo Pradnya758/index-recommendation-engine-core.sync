@@ -4,7 +4,7 @@ const LIMITATIONS = [
     icon: "⚖️",
     title: "Heuristic Scoring, Not Cost-Based",
     severity: "info",
-    body: "Scores are additive weights assigned by rule (equality +45, join +35, range +25, sort/group +15, composite +65). They reflect common DBA intuition, not a query cost model. A real optimizer measures I/O cost, row estimates, and buffer pool state — this engine does none of that.",
+    body: "Scores are fixed, project-defined educational values assigned by query feature (equality 45, join 35, range 25, sort/group 15, composite exactly 65). Database evidence does not add scoring bonuses. They are not produced by a dataset, machine learning, benchmarks, measured performance, or a query cost model.",
   },
   {
     id: "workload",

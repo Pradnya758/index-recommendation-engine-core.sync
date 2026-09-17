@@ -10,7 +10,7 @@ The recommendation engine is deterministic and rule-based. AI is not used to cre
 4. **Schema inspection:** Existing indexes and primary keys are read from SQLite metadata.
 5. **Candidate generation:** The engine creates single-column candidates and selected composite candidates.
 6. **Redundancy filtering:** Candidates covered by a primary key or an existing index's left prefix are rejected.
-7. **Scoring and ranking:** Surviving candidates receive evidence-based scores and are sorted deterministically.
+7. **Scoring and ranking:** Surviving candidates receive project-defined heuristic scores and are sorted deterministically.
 8. **Output:** The API returns recommendations, rejected candidates, evidence, confidence, and reversible SQL statements.
 
 ## Scoring Rules
@@ -24,7 +24,7 @@ The recommendation engine is deterministic and rule-based. AI is not used to cre
 | `GROUP BY` column | 15 |
 | Composite predicate candidate | 65 |
 
-Scores accumulate for a candidate and are capped at 100. Confidence is derived from the final score:
+These are fixed educational heuristics. Composite candidates score exactly 65; database evidence, selectivity, query-plan changes, statistics, and measured performance do not add score bonuses. Confidence is a separate response field derived from the score:
 
 | Score | Confidence |
 | --- | --- |
@@ -32,13 +32,13 @@ Scores accumulate for a candidate and are capped at 100. Confidence is derived f
 | 35 to 64 | Medium |
 | Below 35 | Low |
 
-These weights are educational heuristics based on query structure, not measured timings or workload statistics.
+These weights are project-defined educational heuristics based on query structure. They are not derived from datasets, machine learning, SQLite's cost model, benchmarks, measured timings, or workload statistics.
 
 ## Candidate Generation
 
 The engine creates a single-column candidate for each detected feature. If a table has at least two equality-filter columns, it also creates a composite candidate containing those columns. If a table has equality and range filters, it creates another composite candidate with the equality columns first and the first detected range column last.
 
-For each candidate, repeated evidence contributes to the same candidate rather than creating duplicates. Recommendations are sorted by descending score, then table and column names, so the same query and schema produce the same result.
+For each candidate, repeated feature evidence is deduplicated rather than creating duplicate candidates. Recommendations are sorted by descending heuristic score, then table and column names, so the same query and schema produce the same result.
 
 ## Redundancy Rules
 
