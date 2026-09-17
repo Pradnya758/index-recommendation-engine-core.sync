@@ -98,24 +98,6 @@ def collect_candidate_evidence(
         source.close()
 
 
-def score_candidate_evidence(evidence: CandidateEvidence) -> int:
-    """Normalize equally weighted, applicable observed outcomes to a 0-100 score."""
-    if not evidence.experiment_succeeded:
-        return 50
-
-    outcomes = [float(evidence.candidate_used)]
-    if _has_target_scan(evidence.baseline_plan, evidence.table):
-        outcomes.append(float(evidence.scan_replaced_by_search))
-    if _has_temp_btree(evidence.baseline_plan):
-        outcomes.append(float(evidence.temp_btree_removed))
-    if len(evidence.columns) > 1:
-        outcomes.append(float(evidence.composite_prefix_used))
-    if evidence.predicate_selectivity is not None:
-        outcomes.append(1.0 - evidence.predicate_selectivity)
-
-    return round(100 * sum(outcomes) / len(outcomes))
-
-
 def failed_candidate_evidence(
     table: str, columns: tuple[str, ...], error: Exception
 ) -> CandidateEvidence:

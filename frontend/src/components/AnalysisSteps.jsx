@@ -16,7 +16,7 @@ const STEP_META = [
   { icon: "🧩", title: "Feature Extraction",   why: "Each clause (WHERE, JOIN, ORDER BY, GROUP BY) signals a different access pattern that indexes can accelerate." },
   { icon: "🗂️", title: "Existing Index Check", why: "Creating a duplicate index wastes space and write overhead. The engine rejects any candidate already covered." },
   { icon: "⚙️", title: "Candidate Generation", why: "Every filtered, joined, or sorted column becomes a candidate. Equality columns are promoted to composite candidates when multiple appear together." },
-  { icon: "📊", title: "Candidate Ranking",    why: "Candidates are scored by evidence strength. Higher scores mean the index would help more query patterns." },
+  { icon: "📊", title: "Candidate Ranking",    why: "Candidates are ranked by the project's fixed educational heuristic scores for their query features." },
   { icon: "🏆", title: "Final Recommendation", why: "The highest-scoring, non-duplicate candidate becomes the recommendation. Rejected candidates are shown for transparency." },
   { icon: "📈", title: "Visualization",        why: "The interactive diagrams show how the recommended index changes the execution path — from full table scan to index lookup." },
 ];
@@ -170,7 +170,7 @@ function StepBody({ step, result, plan, query, schema }) {
             ))}
           </div>
         )}
-        <p className="as-note">Score is capped at 100. Composite candidates start at 65 and can accumulate additional evidence.</p>
+        <p className="as-note">These are project-defined educational heuristics. A composite candidate scores exactly 65; database evidence does not add score bonuses.</p>
       </div>
     );
   }

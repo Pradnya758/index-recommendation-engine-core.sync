@@ -42,8 +42,8 @@ const STEPS = [
     icon: "💡",
     title: "Read the Index Recommendation",
     click: "Click the 'Recommendations' tab (the default tab after analysis).",
-    expect: "One or more recommendation cards appear, each showing: the table, the columns to index, the CREATE INDEX SQL, a score (0–100), a confidence level (high/medium/low), the reasons, and the query evidence.",
-    meaning: "A high-confidence recommendation (score ≥ 65) means the engine found strong evidence — typically a composite equality+range filter. A rejected candidate means an existing index or primary key already covers that column.",
+    expect: "One or more recommendation cards appear, each showing: the table, the columns to index, the CREATE INDEX SQL, a project-defined heuristic score, a separate confidence level (high/medium/low), the reasons, and the query evidence.",
+    meaning: "The score comes only from the project's fixed query-feature heuristics. Confidence is a separate label derived from score thresholds. A rejected candidate means an existing index or primary key already covers that column.",
     tip: "If you see 'No new index recommended', the query is already well-covered. Check the Rejected Candidates section to see why.",
   },
   {
@@ -254,39 +254,25 @@ export default function UserManualView({ onNavigate }) {
       {/* scoring reference */}
       <div className="um-section">
         <div className="um-section-title">Scoring Quick Reference</div>
+        <p className="um-score-note">
+          These are fixed, project-defined educational heuristic scores. Database evidence does not
+          add bonuses, and a composite candidate scores exactly 65. Scores are not derived from a
+          dataset, benchmark, machine-learning model, SQLite cost model, or measured performance.
+        </p>
         <div className="um-score-table-wrap">
           <table className="um-score-table">
             <thead>
               <tr><th>Evidence type</th><th>Points</th><th>Confidence threshold</th></tr>
             </thead>
             <tbody>
-              <tr><td>Equality filter (WHERE col = val)</td><td>+45</td><td rowSpan={2} className="um-conf-cell">≥ 65 → High</td></tr>
-              <tr><td>Composite predicate (equality + range)</td><td>+65</td></tr>
-              <tr><td>JOIN column</td><td>+35</td><td className="um-conf-cell">≥ 35 → Medium</td></tr>
-              <tr><td>Range filter (WHERE col &gt; val)</td><td>+25</td><td rowSpan={2} className="um-conf-cell">&lt; 35 → Low</td></tr>
-              <tr><td>ORDER BY / GROUP BY column</td><td>+15</td></tr>
+              <tr><td>Equality / WHERE equality condition</td><td>+45</td><td rowSpan={2} className="um-conf-cell">≥ 65 → High</td></tr>
+              <tr><td>JOIN condition</td><td>+35</td></tr>
+              <tr><td>Range condition</td><td>+25</td><td rowSpan={2} className="um-conf-cell">≥ 35 → Medium</td></tr>
+              <tr><td>ORDER BY</td><td>+15</td></tr>
+              <tr><td>GROUP BY</td><td>+15</td><td rowSpan={2} className="um-conf-cell">&lt; 35 → Low</td></tr>
+              <tr><td>Composite index candidate</td><td>+65</td></tr>
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* troubleshooting */}
-      <div className="um-section">
-        <div className="um-section-title">Common Issues</div>
-        <div className="um-trouble-list">
-          {[
-            { q: "Run Analysis button is greyed out", a: "The textarea is empty or contains a non-SELECT statement. Enter a valid SELECT query." },
-            { q: "\"Cannot reach the backend\" error", a: "The FastAPI server is not running. Open a terminal, navigate to the backend folder, activate the venv, and run: uvicorn main:app --reload" },
-            { q: "\"Table 'X' does not exist\" error", a: "The query references a table not in the demo database. Use: students, customers, products, or orders." },
-            { q: "No recommendations returned", a: "The query only references columns already covered by a primary key or existing index. Check the Rejected Candidates section for details." },
-            { q: "Visualizations show 'No query analyzed yet'", a: "Run an analysis on the Analyze page first, then return to Visualize." },
-            { q: "AI Tutor shows no explanation", a: "Run an analysis first. The AI Tutor requires a recommendation result to explain." },
-          ].map((item) => (
-            <div key={item.q} className="um-trouble-item">
-              <div className="um-trouble-q">❓ {item.q}</div>
-              <div className="um-trouble-a">{item.a}</div>
-            </div>
-          ))}
         </div>
       </div>
 

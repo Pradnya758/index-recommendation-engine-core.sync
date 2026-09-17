@@ -14,9 +14,18 @@ from app.services.index_evidence import (
     CandidateEvidence,
     collect_candidate_evidence,
     failed_candidate_evidence,
-    score_candidate_evidence,
 )
 from app.services.sql_analyzer import extract_query_features
+
+
+_HEURISTIC_SCORES = {
+    "equality_filter": 45,
+    "join": 35,
+    "range_filter": 25,
+    "order_by": 15,
+    "group_by": 15,
+    "composite": 65,
+}
 
 
 @dataclass
@@ -58,7 +67,7 @@ def build_recommendations(query: str, schema: SchemaInspectionResponse) -> Recom
             database_evidence = failed_candidate_evidence(
                 candidate.table, candidate.columns, error
             )
-        score = score_candidate_evidence(database_evidence)
+        score = _score_candidate(candidate)
         reasons, evidence = _explain_evidence(candidate, database_evidence)
         index_name = _index_name(candidate.table, candidate.columns)
         recommendations.append(
@@ -77,6 +86,13 @@ def build_recommendations(query: str, schema: SchemaInspectionResponse) -> Recom
     recommendations.sort(key=lambda recommendation: (-recommendation.score, recommendation.table, recommendation.columns))
     rejected.sort(key=lambda candidate: (candidate.table, candidate.columns))
     return RecommendationResponse(query=query, analysis=features, recommendations=recommendations, rejected_candidates=rejected)
+
+
+def _score_candidate(candidate: _Candidate) -> int:
+    features = {item.feature for item in candidate.evidence}
+    if "composite" in features:
+        return _HEURISTIC_SCORES["composite"]
+    return sum(_HEURISTIC_SCORES.get(feature, 0) for feature in features)
 
 
 def _generate_candidates(features: QueryFeatures) -> dict[tuple[str, tuple[str, ...]], _Candidate]:
@@ -164,7 +180,7 @@ def _explain_evidence(
 
     if not database_evidence.experiment_succeeded:
         reasons.append(
-            "SQLite evidence was unavailable; a neutral deterministic fallback score was used."
+            "SQLite evidence was unavailable; the project-defined heuristic score is unchanged."
         )
         evidence.append(
             RecommendationEvidence(

@@ -227,9 +227,9 @@ export default function ExamplesView({ onOpen }) {
               <div className="htr-card-icon">🔢</div>
               <div className="htr-card-title">Score</div>
               <div className="htr-card-desc">
-                A numeric value (0–100) reflecting how strongly the query evidence supports this
-                index. Equality filter = 45 pts, JOIN = 35 pts, range filter = 25 pts,
-                ORDER BY / GROUP BY = 15 pts, composite = 65 pts.
+                A project-defined educational heuristic based on the candidate's query feature.
+                Equality filter = 45 pts, JOIN = 35 pts, range filter = 25 pts,
+                ORDER BY / GROUP BY = 15 pts, and composite = exactly 65 pts.
               </div>
             </div>
             <div className="htr-card">

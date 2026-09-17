@@ -1068,6 +1068,13 @@ details[open] .tbl-summary { color: var(--accent3); }
 .scan-row-match   { fill: rgba(16,185,129,.1); stroke: var(--green); }
 .scan-row-id    { fill: var(--text3); font: 9px var(--mono); }
 .scan-row-value { fill: var(--text);   font: 10px var(--mono); }
+.scan-search-control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0 8px; }
+.scan-search-control label { color: var(--text2); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.scan-search-control input { width: 104px; padding: 7px 9px; color: var(--text); background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-sm); font: 600 11px var(--mono); outline: none; transition: border-color var(--tr), box-shadow var(--tr); }
+.scan-search-control input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px var(--glow); }
+.scan-result { margin-left: auto; color: var(--text2); font: 600 10px var(--mono); }
+.scan-result.is-found { color: var(--green2); }
+.scan-result.is-missing { color: var(--red); }
 .tree-link { stroke: var(--tree-link); stroke-width: 1.5; }
 .tree-link.is-active { stroke: var(--tree-link-active); stroke-width: 2.5; }
 .leaf-link { stroke: var(--tree-leaf-link); stroke-width: 1.75; stroke-dasharray: 4 3; opacity: .85; }
