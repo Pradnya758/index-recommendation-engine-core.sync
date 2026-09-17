@@ -141,33 +141,6 @@ const SCORING = [
   { feature: "Composite predicate candidate", points: 65, why: "A composite index satisfying multiple conditions in one lookup is more valuable than any single-column index." },
 ];
 
-const USE_CASES = [
-  {
-    icon: "🛒", title: "E-commerce Order Search",
-    scenario: "SELECT * FROM orders WHERE customer_id = 42 AND status = 'paid' ORDER BY order_date",
-    benefit: "A composite index on (customer_id, status, order_date) satisfies the WHERE and ORDER BY in one lookup.",
-    limitation: "If order status has very few distinct values (e.g. only 3), the status column adds little selectivity.",
-  },
-  {
-    icon: "🏦", title: "Banking / Customer Lookup",
-    scenario: "SELECT * FROM accounts WHERE account_number = '12345678'",
-    benefit: "An equality index on account_number gives O(log n) lookup instead of O(n) full scan.",
-    limitation: "If account_number is already the primary key, no new index is needed — the engine will reject the candidate.",
-  },
-  {
-    icon: "🎓", title: "Student / Employee Database",
-    scenario: "SELECT * FROM students WHERE major = 'Computer Science'",
-    benefit: "An index on major speeds up department-level queries common in academic reporting.",
-    limitation: "If the table has only a few hundred rows, the query planner may prefer a full scan regardless.",
-  },
-  {
-    icon: "📈", title: "Reporting / Analytics",
-    scenario: "SELECT status, COUNT(*) FROM orders GROUP BY status",
-    benefit: "An index on status can allow a grouped scan without reading every column.",
-    limitation: "For aggregations over the entire table, a full scan may still be faster than index + row fetch.",
-  },
-];
-
 function ComplexityBadge({ notation, note }) {
   return (
     <span className="algo-complexity-badge" title={note}>
@@ -364,44 +337,6 @@ export default function AlgorithmView() {
                     <ComplexityBadge notation={row.notation} note={row.note} />
                     <div className="algo-cx-var">{row.var}</div>
                     <div className="algo-cx-note">{row.note}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Section: Use Cases ── */}
-        <div className="algo-section">
-          <button className="algo-section-hdr" onClick={() => toggleSection("usecases")}
-            type="button" aria-expanded={openSection === "usecases"}>
-            <span className="algo-section-icon">🌍</span>
-            <span className="algo-section-title">Real-World Use Cases</span>
-            <span className="algo-section-chevron">{openSection === "usecases" ? "▲" : "▼"}</span>
-          </button>
-          {openSection === "usecases" && (
-            <div className="algo-section-body">
-              <p className="algo-body-text">
-                Index recommendation is useful wherever queries are known in advance and
-                the schema is relatively stable. The examples below illustrate common patterns —
-                no specific performance numbers are claimed.
-              </p>
-              <div className="algo-usecase-grid">
-                {USE_CASES.map((uc) => (
-                  <div className="algo-usecase-card" key={uc.title}>
-                    <div className="algo-usecase-top">
-                      <span className="algo-usecase-icon">{uc.icon}</span>
-                      <span className="algo-usecase-title">{uc.title}</span>
-                    </div>
-                    <code className="algo-usecase-sql">{uc.scenario}</code>
-                    <div className="algo-usecase-benefit">
-                      <span className="algo-uc-label benefit">Benefit</span>
-                      {uc.benefit}
-                    </div>
-                    <div className="algo-usecase-limit">
-                      <span className="algo-uc-label limit">Limitation</span>
-                      {uc.limitation}
-                    </div>
                   </div>
                 ))}
               </div>

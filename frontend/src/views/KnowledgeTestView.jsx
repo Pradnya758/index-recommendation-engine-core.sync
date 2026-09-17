@@ -132,6 +132,14 @@ const QUESTIONS = [
   },
 ];
 
+const REFLECTIONS = [
+  "Can I identify index candidates from WHERE, JOIN, ORDER BY, and GROUP BY clauses?",
+  "Can I explain SCAN versus SEARCH in a SQLite query plan?",
+  "Can I choose column order for a composite index using the left-prefix rule?",
+  "Can I explain when an index may hurt writes or be ignored by the planner?",
+  "Can I trace this project's workflow from SQL validation to recommendation evidence?",
+];
+
 export default function KnowledgeTestView() {
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState(null);
@@ -213,8 +221,8 @@ export default function KnowledgeTestView() {
         <div className="kt-page-hdr">
           <div>
             <div className="eyebrow">Practice</div>
-            <h1 className="kt-page-title">Knowledge Test</h1>
-            <p className="kt-page-sub">Test your understanding of database indexing concepts.</p>
+            <h1 className="kt-page-title">Ask Yourself + Knowledge Test</h1>
+            <p className="kt-page-sub">Reflect on the learning goals, then test your understanding with the existing interactive quiz.</p>
           </div>
           <div className="kt-progress-info">
             <span className="kt-q-counter">Question {current + 1} of {total}</span>
@@ -223,6 +231,21 @@ export default function KnowledgeTestView() {
             </div>
           </div>
         </div>
+
+        <section className="ask-yourself" aria-labelledby="ask-yourself-title">
+          <div>
+            <span className="ask-kicker">Before you begin</span>
+            <h2 id="ask-yourself-title">Ask Yourself</h2>
+          </div>
+          <div className="ask-grid">
+            {REFLECTIONS.map((reflection, index) => (
+              <div className="ask-prompt" key={reflection}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <p>{reflection}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Question card */}
         <div className="kt-card" key={q.id}>

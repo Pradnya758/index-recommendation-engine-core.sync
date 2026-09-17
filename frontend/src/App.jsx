@@ -15,6 +15,7 @@ import {
   Menu,
   Moon,
   Library,
+  Landmark,
   Sparkles,
   Sun,
   TestTube2,
@@ -40,6 +41,7 @@ import KnowledgeTestView from "./views/KnowledgeTestView";
 import LearnView from "./views/LearnView";
 import LimitationsView from "./views/LimitationsView";
 import ReferencesView from "./views/ReferencesView";
+import RealWorldCasesView from "./views/RealWorldCasesView";
 import TestingView from "./views/TestingView";
 import AiUsageView from "./views/AiUsageView";
 import UserManualView from "./views/UserManualView";
@@ -55,7 +57,7 @@ const NAV_GROUPS = [
   {
     label: "Practice",
     items: [
-      { id: "test", label: "Knowledge Test", icon: GraduationCap },
+      { id: "test", label: "Ask Yourself + Knowledge Test", icon: GraduationCap },
       { id: "examples", label: "Examples", icon: FileCode2 },
     ],
   },
@@ -63,6 +65,7 @@ const NAV_GROUPS = [
     label: "Learn",
     items: [
       { id: "learn", label: "Learn", icon: BookOpen },
+      { id: "cases", label: "Real-World Cases", icon: Landmark },
       { id: "tutor", label: "AI Tutor", icon: Bot },
     ],
   },
@@ -83,7 +86,7 @@ export default function App() {
   const [page, setPage]               = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [light, setLight]             = useState(false);
+  const [light, setLight]             = useState(true);
   const [query, setQuery]             = useState(EXAMPLES[3].query);
   const [schema, setSchema]           = useState(null);
   const [schemaError, setSchemaError] = useState("");
@@ -366,6 +369,7 @@ export default function App() {
 
         {page === "history"     && <HistoryView onOpen={openHistoryEntry} />}
         {page === "learn"        && <LearnView />}
+        {page === "cases"        && <RealWorldCasesView />}
         {page === "algorithm"    && <AlgorithmView />}
         {page === "limitations"  && <LimitationsView />}
         {page === "references"   && <ReferencesView />}

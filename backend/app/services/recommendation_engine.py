@@ -10,6 +10,12 @@ from app.models.schemas import (
     RejectedCandidate,
     SchemaInspectionResponse,
 )
+from app.services.index_evidence import (
+    CandidateEvidence,
+    collect_candidate_evidence,
+    failed_candidate_evidence,
+    score_candidate_evidence,
+)
 from app.services.sql_analyzer import extract_query_features
 
 
@@ -17,12 +23,10 @@ from app.services.sql_analyzer import extract_query_features
 class _Candidate:
     table: str
     columns: tuple[str, ...]
-    score: int = 0
     reasons: list[str] = field(default_factory=list)
     evidence: list[RecommendationEvidence] = field(default_factory=list)
 
-    def add(self, points: int, reason: str, evidence: RecommendationEvidence) -> None:
-        self.score += points
+    def add(self, reason: str, evidence: RecommendationEvidence) -> None:
         if reason not in self.reasons:
             self.reasons.append(reason)
         if evidence not in self.evidence:
@@ -46,6 +50,16 @@ def build_recommendations(query: str, schema: SchemaInspectionResponse) -> Recom
         if rejection_reason:
             rejected.append(RejectedCandidate(table=candidate.table, columns=list(candidate.columns), reason=rejection_reason))
             continue
+        try:
+            database_evidence = collect_candidate_evidence(
+                query, candidate.table, candidate.columns, features
+            )
+        except (sqlite3.Error, ValueError) as error:
+            database_evidence = failed_candidate_evidence(
+                candidate.table, candidate.columns, error
+            )
+        score = score_candidate_evidence(database_evidence)
+        reasons, evidence = _explain_evidence(candidate, database_evidence)
         index_name = _index_name(candidate.table, candidate.columns)
         recommendations.append(
             IndexRecommendation(
@@ -53,10 +67,10 @@ def build_recommendations(query: str, schema: SchemaInspectionResponse) -> Recom
                 columns=list(candidate.columns),
                 create_index_sql=_create_index_sql(index_name, candidate.table, candidate.columns),
                 drop_index_sql=f'DROP INDEX IF EXISTS "{index_name}";',
-                score=min(candidate.score, 100),
-                confidence=_confidence(candidate.score),
-                reasons=candidate.reasons,
-                evidence=candidate.evidence,
+                score=score,
+                confidence=_confidence(score, database_evidence.experiment_succeeded),
+                reasons=reasons,
+                evidence=evidence,
             )
         )
 
@@ -72,16 +86,16 @@ def _generate_candidates(features: QueryFeatures) -> dict[tuple[str, tuple[str, 
 
     for column in features.equality_filters:
         equality_by_table[column.table].append(column.column)
-        _add_feature(candidates, column, "equality_filter", 45, "Equality filters are highly selective and benefit from direct index lookup.")
+        _add_feature(candidates, column, "equality_filter", "The candidate supports an equality predicate.")
     for column in features.range_filters:
         range_by_table[column.table].append(column.column)
-        _add_feature(candidates, column, "range_filter", 25, "Range filters benefit from ordered index traversal.")
+        _add_feature(candidates, column, "range_filter", "The candidate supports a range predicate.")
     for column in features.join_columns:
-        _add_feature(candidates, column, "join", 35, "Join columns benefit from faster row matching between tables.")
+        _add_feature(candidates, column, "join", "The candidate supports a join condition.")
     for column in features.order_by_columns:
-        _add_feature(candidates, column, "order_by", 15, "ORDER BY can use an index to reduce sorting work.")
+        _add_feature(candidates, column, "order_by", "The candidate follows the ORDER BY column.")
     for column in features.group_by_columns:
-        _add_feature(candidates, column, "group_by", 15, "GROUP BY can use ordered index values to reduce grouping work.")
+        _add_feature(candidates, column, "group_by", "The candidate follows the GROUP BY column.")
 
     for table, equality_columns in equality_by_table.items():
         ordered_equality = _unique(equality_columns)
@@ -99,12 +113,10 @@ def _add_feature(
     candidates: dict[tuple[str, tuple[str, ...]], _Candidate],
     column: ColumnReference,
     feature: str,
-    points: int,
     reason: str,
 ) -> None:
     candidate = candidates.setdefault((column.table, (column.column,)), _Candidate(column.table, (column.column,)))
     candidate.add(
-        points,
         reason,
         RecommendationEvidence(feature=feature, table=column.table, column=column.column, detail=f"{column.table}.{column.column} appears in {feature.replace('_', ' ').upper()}"),
     )
@@ -118,7 +130,6 @@ def _add_composite(
 ) -> None:
     candidate = candidates.setdefault((table, columns), _Candidate(table, columns))
     candidate.add(
-        65,
         reason,
         RecommendationEvidence(feature="composite", table=table, column=", ".join(columns), detail=f"Composite candidate uses {', '.join(columns)} in query predicate order."),
     )
@@ -144,7 +155,70 @@ def _index_name(table: str, columns: tuple[str, ...]) -> str:
     return f"idx_{table}_{'_'.join(columns)}"
 
 
-def _confidence(score: int) -> str:
+def _explain_evidence(
+    candidate: _Candidate, database_evidence: CandidateEvidence
+) -> tuple[list[str], list[RecommendationEvidence]]:
+    reasons = list(candidate.reasons)
+    evidence = list(candidate.evidence)
+    column_label = ", ".join(candidate.columns)
+
+    if not database_evidence.experiment_succeeded:
+        reasons.append(
+            "SQLite evidence was unavailable; a neutral deterministic fallback score was used."
+        )
+        evidence.append(
+            RecommendationEvidence(
+                feature="evidence_unavailable",
+                table=candidate.table,
+                column=column_label,
+                detail=f"Isolated SQLite experiment failed ({database_evidence.error}).",
+            )
+        )
+        return reasons, evidence
+
+    outcomes = [
+        ("candidate_plan", database_evidence.candidate_used, "SQLite selected the candidate index.", "SQLite did not select the candidate index."),
+        ("plan_change", database_evidence.plan_changed, "The candidate changed EXPLAIN QUERY PLAN.", "The candidate did not change EXPLAIN QUERY PLAN."),
+        ("scan_to_search", database_evidence.scan_replaced_by_search, "The target-table access changed from SCAN to SEARCH.", "No target-table SCAN-to-SEARCH change was observed."),
+        ("temporary_btree", database_evidence.temp_btree_removed, "The candidate removed temporary B-tree work.", "No temporary B-tree removal was observed."),
+    ]
+    if len(candidate.columns) > 1:
+        outcomes.append(
+            ("composite_prefix", database_evidence.composite_prefix_used, "SQLite used the expected composite-index prefix.", "SQLite did not use every expected composite-prefix column.")
+        )
+    for feature, observed, positive, negative in outcomes:
+        detail = positive if observed else negative
+        evidence.append(
+            RecommendationEvidence(
+                feature=feature,
+                table=candidate.table,
+                column=column_label,
+                detail=detail,
+            )
+        )
+        if observed:
+            reasons.append(positive)
+
+    statistics = (
+        f"Table has {database_evidence.table_row_count} rows; candidate-column distinct counts are "
+        f"{', '.join(str(value) for value in database_evidence.distinct_counts)}."
+    )
+    if database_evidence.predicate_selectivity is not None:
+        statistics += f" Observed query selectivity is {database_evidence.predicate_selectivity:.3f}."
+    evidence.append(
+        RecommendationEvidence(
+            feature="database_statistics",
+            table=candidate.table,
+            column=column_label,
+            detail=statistics,
+        )
+    )
+    return reasons, evidence
+
+
+def _confidence(score: int, evidence_available: bool = True) -> str:
+    if not evidence_available:
+        return "low"
     if score >= 65:
         return "high"
     if score >= 35:

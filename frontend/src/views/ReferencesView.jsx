@@ -4,18 +4,10 @@ const REFERENCES = [
   {
     type: "Book",
     icon: BookOpen,
-    title: "Database System Concepts",
-    authors: "Abraham Silberschatz, Henry F. Korth, S. Sudarshan",
-    publisher: "McGraw-Hill",
-    usedFor: "Database indexing, query processing, B+ trees, and fundamental DBMS concepts.",
-  },
-  {
-    type: "Official documentation",
-    icon: FileCode2,
-    title: "SQLite Query Planning",
-    organization: "SQLite Documentation",
-    url: "https://www.sqlite.org/queryplanner.html",
-    usedFor: "Understanding how SQLite uses indexes, table scans, and query planning.",
+    title: "Database System Concepts — 7th Edition",
+    topic: "Chapter 4 — Intermediate SQL: Index Definition in SQL",
+    url: "https://www.db-book.com/slides-dir/PDF-dir/ch4.pdf",
+    usedFor: "Used to understand index creation, why indexes can avoid scanning all tuples, and how an index can efficiently locate records matching a specified value.",
   },
   {
     type: "Official documentation",
@@ -55,16 +47,26 @@ export default function ReferencesView() {
                 <div className="reference-copy">
                   <div className="reference-type">{reference.type}</div>
                   <h2>{reference.title}</h2>
-                  <p className="reference-source">
-                    {reference.authors || reference.organization}
-                    {reference.publisher && <span>{reference.publisher}</span>}
-                  </p>
+                  {reference.topic ? (
+                    <>
+                      <p className="reference-source"><strong>Topic</strong><span>{reference.topic}</span></p>
+                      <p className="reference-source">
+                        <strong>Link</strong>
+                        <a href={reference.url} target="_blank" rel="noreferrer">{reference.url}</a>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="reference-source">
+                      {reference.authors || reference.organization}
+                      {reference.publisher && <span>{reference.publisher}</span>}
+                    </p>
+                  )}
                   <div className="reference-purpose">
                     <strong>Used for</strong>
                     <span>{reference.usedFor}</span>
                   </div>
                 </div>
-                {reference.url && (
+                {reference.url && !reference.topic && (
                   <a className="reference-link" href={reference.url} target="_blank" rel="noreferrer">
                     <ExternalLink size={17} aria-hidden="true" />
                     <span>Open source</span>

@@ -23,11 +23,16 @@ export default function DevelopedByView() {
         <header className="credits-header">
           <div className="eyebrow">Database Intelligence Lab</div>
           <h1>Developed By</h1>
+          <div className="credits-team-name">CORE SYNC</div>
         </header>
 
         <section className="credits-roster" aria-label="Project team">
-          {members.map((member) => (
-            <article className="credits-profile" key={member.registerNumber}>
+          {members.map((member, index) => (
+            <article
+              className="credits-profile"
+              data-index={String(index + 1).padStart(2, "0")}
+              key={member.registerNumber}
+            >
               <div className="credits-avatar">
                 <img
                   className={member.photoClassName}
