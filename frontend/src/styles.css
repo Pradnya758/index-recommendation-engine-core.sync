@@ -33,6 +33,19 @@
   --glow-cyan: rgba(6,182,212,.15);
   --glow-cyan2:rgba(6,182,212,.06);
   --glow-ind:  rgba(79,70,229,.15);
+  --tree-node-fill: var(--surface2);
+  --tree-leaf-fill: var(--surface);
+  --tree-root-fill: rgba(37,99,235,.15);
+  --tree-active-fill: rgba(37,99,235,.2);
+  --tree-match-fill: var(--accent2);
+  --tree-node-border: var(--border2);
+  --tree-root-border: var(--accent2);
+  --tree-link: var(--border2);
+  --tree-link-active: var(--accent2);
+  --tree-leaf-link: var(--cyan2);
+  --tree-label: var(--text2);
+  --tree-match-label: #fff;
+  --tree-caption: var(--text3);
   --r:         10px;
   --r-sm:      6px;
   --r-lg:      16px;
@@ -82,6 +95,19 @@ body.light {
   --glow-cyan: rgba(8,145,178,.1);
   --glow-cyan2:rgba(8,145,178,.04);
   --glow-ind:  rgba(67,56,202,.08);
+  --tree-node-fill: #eef4ff;
+  --tree-leaf-fill: #ffffff;
+  --tree-root-fill: #dbeafe;
+  --tree-active-fill: #dbeafe;
+  --tree-match-fill: #1d4ed8;
+  --tree-node-border: #45689f;
+  --tree-root-border: #1d4ed8;
+  --tree-link: #647a9e;
+  --tree-link-active: #1d4ed8;
+  --tree-leaf-link: #0e7490;
+  --tree-label: #172554;
+  --tree-match-label: #ffffff;
+  --tree-caption: #334155;
   --grad-hero: linear-gradient(135deg, #f0f5ff 0%, #e8f0ff 50%, #dde8ff 100%);
 }
 
@@ -1042,20 +1068,20 @@ details[open] .tbl-summary { color: var(--accent3); }
 .scan-row-match   { fill: rgba(16,185,129,.1); stroke: var(--green); }
 .scan-row-id    { fill: var(--text3); font: 9px var(--mono); }
 .scan-row-value { fill: var(--text);   font: 10px var(--mono); }
-.tree-link { stroke: var(--border2); stroke-width: 1.5; }
-.tree-link.is-active { stroke: var(--accent2); stroke-width: 2.5; }
-.leaf-link { stroke: var(--cyan2); stroke-width: 1.75; stroke-dasharray: 4 3; opacity: .85; }
-.leaf-arrow-head { fill: var(--cyan2); opacity: .9; }
-.leaf-link-label { fill: var(--cyan2); font: 700 8px var(--mono); letter-spacing: .1em; }
-.tree-node { stroke: var(--border2); fill: var(--surface2); }
-.tree-root { fill: rgba(37,99,235,.15); stroke: var(--accent2); }
-.tree-leaf { fill: var(--surface); }
-.tree-node.is-active { fill: rgba(37,99,235,.2); stroke: var(--accent2); stroke-width: 2; }
-.tree-node.is-match  { fill: var(--accent2); }
-.tree-label { fill: var(--text2); font: 9px var(--mono); }
-.tree-node.is-match + .tree-label { fill: #fff; font-weight: 600; }
-.tree-caption { fill: var(--text3); font: 9px var(--mono); }
-.tree-caption-note { fill: var(--text3); font: 8px var(--mono); }
+.tree-link { stroke: var(--tree-link); stroke-width: 1.5; }
+.tree-link.is-active { stroke: var(--tree-link-active); stroke-width: 2.5; }
+.leaf-link { stroke: var(--tree-leaf-link); stroke-width: 1.75; stroke-dasharray: 4 3; opacity: .85; }
+.leaf-arrow-head { fill: var(--tree-leaf-link); opacity: .9; }
+.leaf-link-label { fill: var(--tree-leaf-link); font: 700 8px var(--mono); letter-spacing: .1em; }
+.tree-node { stroke: var(--tree-node-border); fill: var(--tree-node-fill); }
+.tree-root { fill: var(--tree-root-fill); stroke: var(--tree-root-border); }
+.tree-leaf { fill: var(--tree-leaf-fill); }
+.tree-node.is-active { fill: var(--tree-active-fill); stroke: var(--tree-link-active); stroke-width: 2; }
+.tree-node.is-match  { fill: var(--tree-match-fill); }
+.tree-label { fill: var(--tree-label); font: 9px var(--mono); }
+.tree-node.is-match + .tree-label { fill: var(--tree-match-label); font-weight: 600; }
+.tree-caption { fill: var(--tree-caption); font: 9px var(--mono); }
+.tree-caption-note { fill: var(--tree-caption); font: 8px var(--mono); }
 .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .comparison-grid section { padding: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm); min-height: 110px; }
 .comparison-label { font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent2); margin-bottom: 8px; }
@@ -1624,12 +1650,6 @@ body.light .az-loading   { border-color: var(--border); }
 body.light .comparison-grid section { background: #f0f5ff; }
 body.light .scan-row-pending { fill: #f0f5ff; stroke: var(--border); }
 body.light .scan-row-checked { fill: rgba(29,78,216,.06); stroke: rgba(37,99,235,.2); }
-body.light .tree-node    { fill: #f0f5ff; stroke: var(--border2); }
-body.light .tree-root    { fill: rgba(29,78,216,.1); stroke: var(--accent); }
-body.light .tree-leaf    { fill: #ffffff; }
-body.light .tree-label   { fill: #0f172a; }
-body.light .tree-link    { stroke: var(--border2); }
-body.light .tree-caption { fill: var(--text3); }
 body.light .scan-row-id  { fill: var(--text3); }
 body.light .scan-row-value { fill: #0f172a; }
 body.light .flow-node b  { background: #f0f5ff; border-color: var(--border2); }
