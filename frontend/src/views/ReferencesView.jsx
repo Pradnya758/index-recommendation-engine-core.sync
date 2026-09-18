@@ -10,6 +10,14 @@ const REFERENCES = [
     usedFor: "Used to understand index creation, why indexes can avoid scanning all tuples, and how an index can efficiently locate records matching a specified value.",
   },
   {
+    type: "Video",
+    icon: ExternalLink,
+    title: "Understanding B-Trees: The Data Structure Behind Modern Databases",
+    topic: "B-Tree / B+ Tree",
+    url: "https://www.youtube.com/watch?v=K1a2Bk8NrYQ",
+    usedFor: "Used to understand B-Tree/B+ Tree indexing concepts and how tree-based indexes help locate records efficiently.",
+  },
+  {
     type: "Official documentation",
     icon: FileCode2,
     title: "SQLite EXPLAIN QUERY PLAN",

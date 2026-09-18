@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
+import sqlite3
 
 from app.models.schemas import (
     ColumnReference,

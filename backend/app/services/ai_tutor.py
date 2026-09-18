@@ -155,7 +155,7 @@ def _local_explanation(payload: dict) -> dict:
             f"equality filter +45, join +35, range filter +25, ORDER BY/GROUP BY +15, "
             f"composite predicate +65. "
             f"The top candidate {rec0['table']}({', '.join(rec0['columns'])}) "
-            f"reached score {rec0['score']} (capped at 100). "
+            f"received the project-defined score {rec0['score']}. "
             f"Candidates whose column prefix matched an existing index or primary key "
             f"were rejected. "
             f"The CREATE INDEX statement is: {rec0['create_index_sql']}"
@@ -340,13 +340,14 @@ _FOLLOWUP_PATTERNS: list[tuple[list[str], str]] = [
         "Every index speeds up reads but slows down writes slightly, because "
         "SQLite must update the index on every INSERT, UPDATE, or DELETE. "
         "Indexes also consume disk space. The rule-based engine only recommends "
-        "indexes with strong evidence (score ≥ 35) to avoid over-indexing.",
+        "indexes only when query features support them, while rejecting candidates "
+        "already covered by a primary key or existing index.",
     ),
     (
         ["score", "confidence", "how is score", "how is confidence"],
-        "The engine accumulates evidence points: equality filter +45, join +35, "
-        "range filter +25, ORDER BY or GROUP BY +15, composite predicate +65. "
-        "The total is capped at 100. Confidence is 'high' for score ≥ 65, "
+        "The engine uses fixed feature scores: equality filter 45, join 35, "
+        "range filter 25, ORDER BY or GROUP BY 15, and composite predicate exactly 65. "
+        "Confidence is 'high' for score ≥ 65, "
         "'medium' for ≥ 35, and 'low' below that.",
     ),
     (

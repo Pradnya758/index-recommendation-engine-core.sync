@@ -7,6 +7,34 @@ const RESPONSIBILITIES = [
   "Final integration and project decisions",
 ];
 
+const AI_TOOLS = [
+  {
+    name: "ChatGPT",
+    use: "Prompting, project planning, debugging guidance, technical explanations, and directing coding tasks.",
+    accent: "cyan",
+  },
+  {
+    name: "Claude AI",
+    use: "UI/UX design review, frontend design feedback, and design corrections.",
+    accent: "coral",
+  },
+  {
+    name: "OpenCode",
+    use: "Repository-level coding assistance, implementation, debugging, and feature refinement.",
+    accent: "mint",
+  },
+  {
+    name: "Amazon Q Developer",
+    use: "Coding assistance, debugging, frontend/backend implementation, and refinement.",
+    accent: "gold",
+  },
+  {
+    name: "GPT in VS Code / GitHub Copilot",
+    use: "Direct coding assistance, bug fixes, UI corrections, testing support, and final code refinements.",
+    accent: "blue",
+  },
+];
+
 export default function AiUsageView() {
   return (
     <div className="au-view">
@@ -31,6 +59,32 @@ export default function AiUsageView() {
           AI-generated suggestions were treated as assistance only. The developers verified the
           functionality, corrected errors, refined the implementation, and are responsible for
           the final submitted system.
+        </p>
+      </section>
+
+      <section className="au-tools" aria-labelledby="ai-tools-heading">
+        <div className="au-tools-heading">
+          <p className="au-section-number">Development toolkit</p>
+          <h2 id="ai-tools-heading">AI Tools Used</h2>
+        </div>
+        <div className="au-tools-grid">
+          {AI_TOOLS.map((tool, index) => (
+            <article className={`au-tool-card au-tool-${tool.accent}`} key={tool.name}>
+              <div className="au-tool-marker" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </div>
+              <div>
+                <h3>{tool.name}</h3>
+                <p><span>Use:</span> {tool.use}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+        <p className="au-tools-note">
+          AI tools were used selectively at different stages as development assistants. The team
+          defined the project requirements, DBMS concepts, system workflow, recommendation
+          methodology, design direction, and final decisions, and reviewed and validated the
+          resulting implementation.
         </p>
       </section>
 

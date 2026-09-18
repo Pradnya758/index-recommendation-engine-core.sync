@@ -18,7 +18,7 @@ const STEP_META = [
   { icon: "⚙️", title: "Candidate Generation", why: "Every filtered, joined, or sorted column becomes a candidate. Equality columns are promoted to composite candidates when multiple appear together." },
   { icon: "📊", title: "Candidate Ranking",    why: "Candidates are ranked by the project's fixed educational heuristic scores for their query features." },
   { icon: "🏆", title: "Final Recommendation", why: "The highest-scoring, non-duplicate candidate becomes the recommendation. Rejected candidates are shown for transparency." },
-  { icon: "📈", title: "Visualization",        why: "The interactive diagrams show how the recommended index changes the execution path — from full table scan to index lookup." },
+  { icon: "📈", title: "Visualization",        why: "The interactive diagrams conceptually compare a full table scan with index-assisted lookup." },
 ];
 
 const TOTAL = STEP_META.length;
@@ -223,7 +223,7 @@ function StepBody({ step, result, plan, query, schema }) {
             { icon: "⚡", title: "Execution Flow", desc: "Shows the query processing pipeline — parse → plan → execute — and where the index intercepts the scan." },
             { icon: "📋", title: "Table Scan",     desc: rec ? `Without the index, SQLite reads every row in ${rec.table}. With it, only matching rows are fetched.` : "Shows the difference between a full scan and an index lookup." },
             { icon: "🌲", title: "B+ Tree",        desc: "Illustrates how the index stores column values in sorted order for O(log n) lookup." },
-            { icon: "🔄", title: "Plan Comparison",desc: "Compares the actual EXPLAIN QUERY PLAN output before and after the recommended index." },
+            { icon: "🔄", title: "Plan Comparison",desc: "Shows the actual baseline EXPLAIN QUERY PLAN beside a conceptual index-assisted plan." },
           ].map((v) => (
             <div className="as-viz-card" key={v.title}>
               <div className="as-viz-icon">{v.icon}</div>
