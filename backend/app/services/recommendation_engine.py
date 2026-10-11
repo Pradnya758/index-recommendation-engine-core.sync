@@ -1,8 +1,10 @@
+
+from __future__ import annotations
+
 from collections import defaultdict
 from dataclasses import dataclass, field
 
 from app.models.schemas import (
-    ColumnReference,
     IndexRecommendation,
     QueryFeatures,
     RecommendationEvidence,
@@ -18,16 +20,6 @@ from app.services.index_evidence import (
 from app.services.sql_analyzer import extract_query_features
 
 
-_HEURISTIC_SCORES = {
-    "equality_filter": 45,
-    "join": 35,
-    "range_filter": 25,
-    "order_by": 15,
-    "group_by": 15,
-    "composite": 65,
-}
-
-
 @dataclass
 class _Candidate:
     table: str
@@ -38,103 +30,240 @@ class _Candidate:
     def add(self, reason: str, evidence: RecommendationEvidence) -> None:
         if reason not in self.reasons:
             self.reasons.append(reason)
-        if evidence not in self.evidence:
+
+        if not any(
+            item.feature == evidence.feature
+            and item.table == evidence.table
+            and item.column == evidence.column
+            for item in self.evidence
+        ):
             self.evidence.append(evidence)
 
 
-def build_recommendations(query: str, schema: SchemaInspectionResponse) -> RecommendationResponse:
-    """Generate explainable SQLite index candidates using deterministic rules only."""
-    schema_columns = {table.name: {column.name for column in table.columns} for table in schema.tables}
+def _priority_order(priority: str) -> int:
+    # These are application labels, not official SQLite categories.
+    if priority == "highly_preferred":
+        return 0
+    if priority == "preferred":
+        return 1
+    return 2
+
+
+def build_recommendations(
+    query: str,
+    schema: SchemaInspectionResponse,
+    evidence_collector=collect_candidate_evidence,
+) -> RecommendationResponse:
+    """Generate recommendations using SQLite query-plan evidence."""
+
+    schema_columns = {
+        table.name: {column.name for column in table.columns}
+        for table in schema.tables
+    }
+
     features = extract_query_features(query, schema_columns)
     candidates = _generate_candidates(features)
-    existing_indexes = {
-        table.name: [(index.name, tuple(index.columns)) for index in table.indexes] for table in schema.tables
-    }
-    primary_keys = {table.name: tuple(table.primary_keys) for table in schema.tables}
+
+    existing_indexes = _existing_indexes(schema)
+    primary_keys = _primary_keys(schema)
 
     recommendations: list[IndexRecommendation] = []
     rejected: list[RejectedCandidate] = []
+
     for candidate in candidates.values():
-        rejection_reason = _rejection_reason(candidate, existing_indexes[candidate.table], primary_keys[candidate.table])
+        primary_key = primary_keys.get(candidate.table, ())
+
+        rejection_reason = _rejection_reason(
+            candidate,
+            existing_indexes.get(candidate.table, []),
+            primary_key,
+        )
+
         if rejection_reason:
-            rejected.append(RejectedCandidate(table=candidate.table, columns=list(candidate.columns), reason=rejection_reason))
+            rejected.append(
+                RejectedCandidate(
+                    table=candidate.table,
+                    columns=list(candidate.columns),
+                    reason=rejection_reason,
+                )
+            )
             continue
+
         try:
-            database_evidence = collect_candidate_evidence(
-                query, candidate.table, candidate.columns, features
+            database_evidence = evidence_collector(
+                query,
+                candidate.table,
+                candidate.columns,
+                features,
             )
-        except (sqlite3.Error, ValueError) as error:
+        except Exception as error:
             database_evidence = failed_candidate_evidence(
-                candidate.table, candidate.columns, error
+                candidate.table,
+                candidate.columns,
+                error,
             )
-        score = _score_candidate(candidate)
-        reasons, evidence = _explain_evidence(candidate, database_evidence)
+
+        reasons, evidence = _explain_evidence(
+            candidate,
+            database_evidence,
+        )
+
+        recommendation = _recommendation_status(database_evidence)
+        priority = _recommendation_priority(database_evidence)
+
         index_name = _index_name(candidate.table, candidate.columns)
+        create_sql = _create_index_sql(
+            index_name,
+            candidate.table,
+            candidate.columns,
+        )
+        drop_sql = f'DROP INDEX IF EXISTS "{index_name}";'
+
         recommendations.append(
             IndexRecommendation(
                 table=candidate.table,
                 columns=list(candidate.columns),
-                create_index_sql=_create_index_sql(index_name, candidate.table, candidate.columns),
-                drop_index_sql=f'DROP INDEX IF EXISTS "{index_name}";',
-                score=score,
-                confidence=_confidence(score, database_evidence.experiment_succeeded),
+                create_index_sql=create_sql,
+                drop_index_sql=drop_sql,
+                recommendation=recommendation,
+                priority=priority,
                 reasons=reasons,
                 evidence=evidence,
             )
         )
 
-    recommendations.sort(key=lambda recommendation: (-recommendation.score, recommendation.table, recommendation.columns))
-    rejected.sort(key=lambda candidate: (candidate.table, candidate.columns))
-    return RecommendationResponse(query=query, analysis=features, recommendations=recommendations, rejected_candidates=rejected)
+    recommendations.sort(
+        key=lambda item: (
+            _priority_order(item.priority),
+            item.table,
+            item.columns,
+        )
+    )
+    rejected.sort(key=lambda item: (item.table, item.columns))
+
+    return RecommendationResponse(
+        query=query,
+        analysis=features,
+        recommendations=recommendations,
+        rejected_candidates=rejected,
+    )
 
 
-def _score_candidate(candidate: _Candidate) -> int:
-    features = {item.feature for item in candidate.evidence}
-    if "composite" in features:
-        return _HEURISTIC_SCORES["composite"]
-    return sum(_HEURISTIC_SCORES.get(feature, 0) for feature in features)
-
-
-def _generate_candidates(features: QueryFeatures) -> dict[tuple[str, tuple[str, ...]], _Candidate]:
+def _generate_candidates(
+    features: QueryFeatures,
+) -> dict[tuple[str, tuple[str, ...]], _Candidate]:
     candidates: dict[tuple[str, tuple[str, ...]], _Candidate] = {}
+
     equality_by_table: dict[str, list[str]] = defaultdict(list)
     range_by_table: dict[str, list[str]] = defaultdict(list)
+    order_by_by_table: dict[str, list[str]] = defaultdict(list)
 
     for column in features.equality_filters:
         equality_by_table[column.table].append(column.column)
-        _add_feature(candidates, column, "equality_filter", "The candidate supports an equality predicate.")
+        _add_feature(
+            candidates,
+            column.table,
+            (column.column,),
+            "equality_filter",
+            f"Column {column.table}.{column.column} is used in an equality filter.",
+        )
+
     for column in features.range_filters:
         range_by_table[column.table].append(column.column)
-        _add_feature(candidates, column, "range_filter", "The candidate supports a range predicate.")
-    for column in features.join_columns:
-        _add_feature(candidates, column, "join", "The candidate supports a join condition.")
-    for column in features.order_by_columns:
-        _add_feature(candidates, column, "order_by", "The candidate follows the ORDER BY column.")
-    for column in features.group_by_columns:
-        _add_feature(candidates, column, "group_by", "The candidate follows the GROUP BY column.")
+        _add_feature(
+            candidates,
+            column.table,
+            (column.column,),
+            "range_filter",
+            f"Column {column.table}.{column.column} is used in a range filter.",
+        )
 
-    for table, equality_columns in equality_by_table.items():
-        ordered_equality = _unique(equality_columns)
-        ordered_ranges = _unique(range_by_table[table])
-        if len(ordered_equality) >= 2:
-            _add_composite(candidates, table, tuple(ordered_equality), "Multiple equality filters are best placed together in a composite index.")
-        if ordered_equality and ordered_ranges:
-            columns = tuple(ordered_equality + [ordered_ranges[0]])
-            _add_composite(candidates, table, columns, "Equality columns first, followed by a range column, match SQLite composite-index usage.")
+    for column in features.join_columns:
+        _add_feature(
+            candidates,
+            column.table,
+            (column.column,),
+            "join",
+            f"Column {column.table}.{column.column} participates in a join.",
+        )
+
+    for column in features.order_by_columns:
+        order_by_by_table[column.table].append(column.column)
+        _add_feature(
+            candidates,
+            column.table,
+            (column.column,),
+            "order_by",
+            f"Column {column.table}.{column.column} is used for ordering.",
+        )
+
+    for column in features.group_by_columns:
+        _add_feature(
+            candidates,
+            column.table,
+            (column.column,),
+            "group_by",
+            f"Column {column.table}.{column.column} is used for grouping.",
+        )
+
+    tables = (
+        set(equality_by_table)
+        | set(range_by_table)
+        | set(order_by_by_table)
+    )
+
+    for table in sorted(tables):
+        equality_columns = _unique(equality_by_table[table])
+        range_columns = _unique(range_by_table[table])
+        order_columns = _unique(order_by_by_table[table])
+
+        if len(equality_columns) >= 2:
+            _add_composite(
+                candidates,
+                table,
+                tuple(equality_columns),
+                "Multiple equality filters can be combined into a composite index.",
+            )
+
+        if equality_columns and range_columns:
+            _add_composite(
+                candidates,
+                table,
+                tuple(equality_columns + [range_columns[0]]),
+                "Equality columns followed by a range column can support this query pattern.",
+            )
+
+        if equality_columns and order_columns:
+            _add_composite(
+                candidates,
+                table,
+                tuple(equality_columns + order_columns),
+                "Equality-filter columns followed by ORDER BY columns may allow searching and sorting with one index.",
+            )
 
     return candidates
 
 
 def _add_feature(
     candidates: dict[tuple[str, tuple[str, ...]], _Candidate],
-    column: ColumnReference,
+    table: str,
+    columns: tuple[str, ...],
     feature: str,
     reason: str,
 ) -> None:
-    candidate = candidates.setdefault((column.table, (column.column,)), _Candidate(column.table, (column.column,)))
+    key = (table, columns)
+    candidate = candidates.setdefault(
+        key,
+        _Candidate(table=table, columns=columns),
+    )
     candidate.add(
         reason,
-        RecommendationEvidence(feature=feature, table=column.table, column=column.column, detail=f"{column.table}.{column.column} appears in {feature.replace('_', ' ').upper()}"),
+        RecommendationEvidence(
+            feature=feature,
+            table=table,
+            column=columns[0],
+            detail=reason,
+        ),
     )
 
 
@@ -144,103 +273,280 @@ def _add_composite(
     columns: tuple[str, ...],
     reason: str,
 ) -> None:
-    candidate = candidates.setdefault((table, columns), _Candidate(table, columns))
+    key = (table, columns)
+    candidate = candidates.setdefault(
+        key,
+        _Candidate(table=table, columns=columns),
+    )
     candidate.add(
         reason,
-        RecommendationEvidence(feature="composite", table=table, column=", ".join(columns), detail=f"Composite candidate uses {', '.join(columns)} in query predicate order."),
+        RecommendationEvidence(
+            feature="composite",
+            table=table,
+            column=", ".join(columns),
+            detail=reason,
+        ),
     )
 
 
-def _rejection_reason(
-    candidate: _Candidate, existing_indexes: list[tuple[str, tuple[str, ...]]], primary_key: tuple[str, ...]
-) -> str | None:
-    if primary_key and candidate.columns[: len(primary_key)] == primary_key:
-        return "Rejected because the candidate duplicates or extends the table primary key."
-    for index_name, index_columns in existing_indexes:
-        if index_columns[: len(candidate.columns)] == candidate.columns:
-            return f"Rejected because existing index '{index_name}' ({', '.join(index_columns)}) already covers this candidate."
-    return None
+def _unique(values: list[str]) -> list[str]:
+    result: list[str] = []
+
+    for value in values:
+        if value not in result:
+            result.append(value)
+
+    return result
 
 
-def _create_index_sql(index_name: str, table: str, columns: tuple[str, ...]) -> str:
-    quoted_columns = ", ".join(f'"{column}"' for column in columns)
-    return f'CREATE INDEX "{index_name}" ON "{table}" ({quoted_columns});'
+def _recommendation_status(database_evidence: CandidateEvidence) -> str:
+    """
+    Recommend only when the candidate is used and the query plan
+    shows a relevant observed change.
+
+    A plan change is evidence about SQLite's chosen plan, not proof
+    of a measured execution-time improvement.
+    """
+
+    if not database_evidence.experiment_succeeded:
+        return "not_recommended"
+
+    if not database_evidence.candidate_used:
+        return "not_recommended"
+
+    if not database_evidence.plan_changed:
+        return "not_recommended"
+
+    if (
+        database_evidence.scan_replaced_by_search
+        or database_evidence.temp_btree_removed
+    ):
+        return "recommended"
+
+    return "not_recommended"
 
 
-def _index_name(table: str, columns: tuple[str, ...]) -> str:
-    return f"idx_{table}_{'_'.join(columns)}"
+def _recommendation_priority(database_evidence: CandidateEvidence) -> str:
+    """
+    Retain the existing API field for compatibility.
+
+    Priority labels are project-defined descriptions of observed
+    plan changes, not official SQLite recommendation categories.
+    """
+
+    if not database_evidence.experiment_succeeded:
+        return "not_preferred"
+
+    if not database_evidence.candidate_used:
+        return "not_preferred"
+
+    if not database_evidence.plan_changed:
+        return "not_preferred"
+
+    if (
+        database_evidence.scan_replaced_by_search
+        and database_evidence.temp_btree_removed
+    ):
+        return "highly_preferred"
+
+    if (
+        database_evidence.scan_replaced_by_search
+        or database_evidence.temp_btree_removed
+    ):
+        return "preferred"
+
+    return "not_preferred"
 
 
 def _explain_evidence(
-    candidate: _Candidate, database_evidence: CandidateEvidence
+    candidate: _Candidate,
+    database_evidence: CandidateEvidence,
 ) -> tuple[list[str], list[RecommendationEvidence]]:
     reasons = list(candidate.reasons)
     evidence = list(candidate.evidence)
     column_label = ", ".join(candidate.columns)
 
     if not database_evidence.experiment_succeeded:
-        reasons.append(
-            "SQLite evidence was unavailable; the project-defined heuristic score is unchanged."
+        detail = (
+            "SQLite evidence could not be collected: "
+            f"{database_evidence.error or 'unknown error'}."
         )
+        reasons.append(detail)
         evidence.append(
             RecommendationEvidence(
                 feature="evidence_unavailable",
                 table=candidate.table,
                 column=column_label,
-                detail=f"Isolated SQLite experiment failed ({database_evidence.error}).",
+                detail=detail,
             )
         )
         return reasons, evidence
 
-    outcomes = [
-        ("candidate_plan", database_evidence.candidate_used, "SQLite selected the candidate index.", "SQLite did not select the candidate index."),
-        ("plan_change", database_evidence.plan_changed, "The candidate changed EXPLAIN QUERY PLAN.", "The candidate did not change EXPLAIN QUERY PLAN."),
-        ("scan_to_search", database_evidence.scan_replaced_by_search, "The target-table access changed from SCAN to SEARCH.", "No target-table SCAN-to-SEARCH change was observed."),
-        ("temporary_btree", database_evidence.temp_btree_removed, "The candidate removed temporary B-tree work.", "No temporary B-tree removal was observed."),
-    ]
-    if len(candidate.columns) > 1:
-        outcomes.append(
-            ("composite_prefix", database_evidence.composite_prefix_used, "SQLite used the expected composite-index prefix.", "SQLite did not use every expected composite-prefix column.")
-        )
-    for feature, observed, positive, negative in outcomes:
-        detail = positive if observed else negative
-        evidence.append(
-            RecommendationEvidence(
-                feature=feature,
-                table=candidate.table,
-                column=column_label,
-                detail=detail,
-            )
-        )
-        if observed:
-            reasons.append(positive)
-
-    statistics = (
-        f"Table has {database_evidence.table_row_count} rows; candidate-column distinct counts are "
-        f"{', '.join(str(value) for value in database_evidence.distinct_counts)}."
-    )
-    if database_evidence.predicate_selectivity is not None:
-        statistics += f" Observed query selectivity is {database_evidence.predicate_selectivity:.3f}."
     evidence.append(
         RecommendationEvidence(
             feature="database_statistics",
             table=candidate.table,
             column=column_label,
-            detail=statistics,
+            detail=(
+                "SQLite ANALYZE was run in the isolated experiment "
+                "before and after creating the candidate index. "
+                "This describes the experiment setup; it does not "
+                "by itself establish that the index is beneficial."
+            ),
         )
     )
+
+    if database_evidence.candidate_used:
+        detail = "SQLite selected the candidate index in the experiment."
+    else:
+        detail = "SQLite did not select the candidate index in the experiment."
+
+    evidence.append(
+        RecommendationEvidence(
+            feature="candidate_plan",
+            table=candidate.table,
+            column=column_label,
+            detail=detail,
+        )
+    )
+
+    if database_evidence.plan_changed:
+        detail = "The candidate changed EXPLAIN QUERY PLAN."
+    else:
+        detail = "The candidate did not change EXPLAIN QUERY PLAN."
+
+    evidence.append(
+        RecommendationEvidence(
+            feature="plan_change",
+            table=candidate.table,
+            column=column_label,
+            detail=detail,
+        )
+    )
+
+    if database_evidence.scan_replaced_by_search:
+        detail = "Target-table access changed from SCAN to SEARCH."
+        reasons.append(detail)
+    else:
+        detail = "No target-table SCAN-to-SEARCH change was observed."
+
+    evidence.append(
+        RecommendationEvidence(
+            feature="scan_to_search",
+            table=candidate.table,
+            column=column_label,
+            detail=detail,
+        )
+    )
+
+    if database_evidence.temp_btree_removed:
+        detail = "The candidate removed temporary B-tree work."
+        reasons.append(detail)
+    else:
+        detail = "No temporary B-tree removal was observed."
+
+    evidence.append(
+        RecommendationEvidence(
+            feature="temporary_btree",
+            table=candidate.table,
+            column=column_label,
+            detail=detail,
+        )
+    )
+
+    if len(candidate.columns) > 1:
+        if database_evidence.composite_prefix_used:
+            detail = (
+                "The query plan indicates use of the composite index "
+                "with the candidate column order."
+            )
+            reasons.append(detail)
+        else:
+            detail = (
+                "The query-plan text did not confirm use of the "
+                "expected composite-index columns in order."
+            )
+
+        evidence.append(
+            RecommendationEvidence(
+                feature="composite_prefix",
+                table=candidate.table,
+                column=column_label,
+                detail=detail,
+            )
+        )
+
     return reasons, evidence
 
 
-def _confidence(score: int, evidence_available: bool = True) -> str:
-    if not evidence_available:
-        return "low"
-    if score >= 65:
-        return "high"
-    if score >= 35:
-        return "medium"
-    return "low"
+def _existing_indexes(
+    schema: SchemaInspectionResponse,
+) -> dict[str, list[tuple[str, tuple[str, ...]]]]:
+    result: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
+
+    for table in schema.tables:
+        result[table.name] = [
+            (index.name, tuple(index.columns))
+            for index in table.indexes
+        ]
+
+    return result
 
 
-def _unique(values: list[str]) -> list[str]:
-    return list(dict.fromkeys(values))
+def _primary_keys(
+    schema: SchemaInspectionResponse,
+) -> dict[str, tuple[str, ...]]:
+    return {
+        table.name: tuple(table.primary_keys)
+        for table in schema.tables
+    }
+
+
+def _rejection_reason(
+    candidate: _Candidate,
+    existing_indexes: list[tuple[str, tuple[str, ...]]],
+    primary_key: tuple[str, ...],
+) -> str | None:
+    if (
+        primary_key
+        and candidate.columns[:len(primary_key)] == primary_key
+    ):
+        return (
+            "Rejected because the candidate duplicates or extends "
+            "the table primary key."
+        )
+
+    for index_name, index_columns in existing_indexes:
+        if (
+            index_columns
+            and index_columns[:len(candidate.columns)] == candidate.columns
+        ):
+            return (
+                "Rejected because existing index "
+                f"'{index_name}' ({', '.join(index_columns)}) "
+                "already covers this candidate's leftmost columns."
+            )
+
+    return None
+
+
+def _index_name(table: str, columns: tuple[str, ...]) -> str:
+    return "idx_" + table + "_" + "_".join(columns)
+
+
+def _create_index_sql(
+    index_name: str,
+    table: str,
+    columns: tuple[str, ...],
+) -> str:
+    quoted_columns = ", ".join(
+        f'"{column.replace(chr(34), chr(34) * 2)}"'
+        for column in columns
+    )
+    quoted_index = index_name.replace('"', '""')
+    quoted_table = table.replace('"', '""')
+
+    return (
+        f'CREATE INDEX "{quoted_index}" '
+        f'ON "{quoted_table}" ({quoted_columns});'
+    )

@@ -1,6 +1,6 @@
 import pradnyaPhoto from "../assets/pradnya-lakshmi-j-r.png";
 import rindhuPhoto from "../assets/rindhu-anchuri.png";
-
+import GuidePhoto from "../assets/Dr. Swaminathan.jpg";
 export default function DevelopedByView() {
   const members = [
     {
@@ -46,11 +46,20 @@ export default function DevelopedByView() {
           ))}
         </section>
 
+        
         <section className="guide-block">
           <div className="eyebrow">Guided By</div>
+
+          <img
+            src={GuidePhoto}
+            alt="Dr. Swaminathan A."
+            className="guide-photo"
+          />
+
           <h2>Dr. Swaminathan A</h2>
           <p>Assistant Professor</p>
         </section>
+
       </div>
     </div>
   );

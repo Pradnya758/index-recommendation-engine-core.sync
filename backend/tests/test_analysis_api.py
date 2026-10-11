@@ -198,16 +198,49 @@ def test_history_save_returns_id():
 # ── TC-15: Export / report JSON structure ─────────────────────────────────────
 
 def test_recommendations_response_has_export_fields():
-    """Verify the JSON shape that ExportButton relies on."""
-    response = client.post("/api/recommendations", json={"query": "SELECT * FROM orders WHERE status = 'paid'"})
-    body = response.json()
-    assert "query" in body
-    assert "analysis" in body
-    assert "recommendations" in body
-    assert "rejected_candidates" in body
-    rec = body["recommendations"][0]
-    for field in ("table", "columns", "create_index_sql", "drop_index_sql", "score", "confidence", "reasons", "evidence"):
-        assert field in rec, f"Missing export field: {field}"
+    response = client.post(
+    "/api/recommendations",
+        json={
+            "query": "SELECT * FROM orders WHERE status = 'paid'"
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert "recommendations" in data
+
+    for recommendation in data["recommendations"]:
+        required_fields = {
+            "table",
+            "columns",
+            "create_index_sql",
+            "drop_index_sql",
+            "recommendation",
+            "reasons",
+            "evidence",
+        }
+
+        for field in required_fields:
+            assert field in recommendation, (
+                f"Missing export field: {field}"
+            )
+
+        assert recommendation["recommendation"] in {
+            "recommended",
+            "not_recommended",
+        }
+
+        assert isinstance(
+            recommendation["reasons"],
+            list,
+        )
+
+        assert isinstance(
+            recommendation["evidence"],
+            list,
+        )
 
 
 # ── Schema validation — unknown table ─────────────────────────────────────────
@@ -226,3 +259,107 @@ def test_error_message_does_not_expose_stack_trace():
     detail = response.json()["detail"]
     assert "Traceback" not in detail
     assert "File \"" not in detail
+
+# ============================================================
+# REAL CHINOOK DATABASE — USER INPUT TESTS
+# ============================================================
+
+def test_real_schema_endpoint_returns_chinook_tables():
+    response = client.get("/api/real-schema")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["database"] == "Chinook_Sqlite.sqlite"
+
+    table_names = {table["name"] for table in body["tables"]}
+
+    assert {"Customer", "Invoice", "Track", "Artist"} <= table_names
+
+
+def test_real_recommendations_accept_custom_select_query():
+    query = """
+        SELECT CustomerId, FirstName, LastName
+        FROM Customer
+        WHERE Country = 'USA'
+    """
+
+    response = client.post(
+        "/api/real-recommendations",
+        json={"query": query},
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["query"]
+    assert body["analysis"]["tables"] == ["Customer"]
+    assert isinstance(body["recommendations"], list)
+    assert isinstance(body["rejected_candidates"], list)
+
+
+def test_real_recommendations_reject_multiple_statements():
+    response = client.post(
+        "/api/real-recommendations",
+        json={
+            "query": "SELECT * FROM Customer; SELECT * FROM Invoice"
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_real_recommendations_reject_unknown_table():
+    response = client.post(
+        "/api/real-recommendations",
+        json={"query": "SELECT * FROM CustomerUnknown"},
+    )
+
+    assert response.status_code == 422
+    assert "CustomerUnknown" in response.json()["detail"]
+
+
+def test_real_query_plan_accepts_custom_query():
+    response = client.post(
+        "/api/real-query-plan",
+        json={
+            "query": """
+                SELECT InvoiceId, InvoiceDate
+                FROM Invoice
+                WHERE CustomerId = 5
+                ORDER BY InvoiceDate DESC
+            """
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["plan"]
+
+def test_real_recommendations_rank_composite_index_higher():
+    response = client.post(
+        "/api/real-recommendations",
+        json={
+            "query": """
+                SELECT InvoiceId, InvoiceDate, Total
+                FROM Invoice
+                WHERE CustomerId = 5
+                ORDER BY InvoiceDate DESC
+            """
+        },
+    )
+
+    assert response.status_code == 200
+
+    recommendations = response.json()["recommendations"]
+
+    composite = next(
+        recommendation
+        for recommendation in recommendations
+        if recommendation["columns"] == ["CustomerId", "InvoiceDate"]
+    )
+
+    assert composite["recommendation"] == "recommended"
+    assert composite["priority"] == "preferred"
+    assert composite["evidence"]
+

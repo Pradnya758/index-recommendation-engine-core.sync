@@ -1,8 +1,13 @@
+
 from pydantic import BaseModel, Field
 
 
 class SqlQueryRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=20_000, description="One SQLite SELECT query")
+    query: str = Field(
+        min_length=1,
+        max_length=20_000,
+        description="One SQLite SELECT query",
+    )
 
 
 class SqlValidationResponse(BaseModel):
@@ -87,8 +92,8 @@ class IndexRecommendation(BaseModel):
     columns: list[str]
     create_index_sql: str
     drop_index_sql: str
-    score: int
-    confidence: str
+    recommendation: str
+    priority: str
     reasons: list[str]
     evidence: list[RecommendationEvidence]
 
