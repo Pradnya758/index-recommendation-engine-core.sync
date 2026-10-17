@@ -1,72 +1,130 @@
+import { useState } from "react";
 import { EXAMPLES } from "../examples";
-
 /* ── Per-example metadata (faculty requirement content) ─────────────────── */
+
 const META = [
   {
-    type:       "WHERE",
+    type: "WHERE",
     difficulty: "Beginner",
-    diffLevel:  1,
-    typeColor:  "ex-type-where",
-    demonstrates: "Single-column equality filter with existing-index detection.",
-    detects:    ["Equality filter: students.major"],
-    expected:   "students.major already has an index (idx_students_major) — rejected as covered.",
-    expectedNote: "The engine detects the equality filter, then rejects the candidate because the existing index already covers major.",
-    why:        "The query demonstrates both feature detection and duplicate-index prevention. SQLite can use the existing major index, so another one would add write and storage overhead without adding coverage.",
-    concepts:   ["Table Scan", "Index Scan", "Selectivity"],
+    diffLevel: 1,
+    typeColor: "ex-type-where",
+    demonstrates: "Equality filtering on customer country.",
+    detects: ["Equality filter: Customer.Country"],
+    expected: "Check whether an index on Country improves the query plan.",
+    expectedNote: "The result depends on the existing indexes and SQLite's measured query-plan evidence.",
+    why: "An index may help SQLite find customers matching a country without scanning every row.",
+    concepts: ["WHERE", "Equality Filter", "Query Plan"],
   },
   {
-    type:       "JOIN",
+    type: "EXISTING INDEX",
+    difficulty: "Beginner",
+    diffLevel: 1,
+    typeColor: "ex-type-where",
+    demonstrates: "Detection of an existing customer lookup index.",
+    detects: ["Equality filter: Invoice.CustomerId"],
+    expected: "Check whether an existing index already covers CustomerId.",
+    expectedNote: "Avoid recommending a redundant index when existing coverage is sufficient.",
+    why: "Existing indexes should be considered before adding another index for the same lookup.",
+    concepts: ["Existing Index", "WHERE", "Redundancy"],
+  },
+  {
+    type: "RANGE",
     difficulty: "Intermediate",
-    diffLevel:  2,
-    typeColor:  "ex-type-join",
-    demonstrates: "JOIN column indexing — the foreign key side of a join.",
-    detects:    ["JOIN column: orders.customer_id", "JOIN column: customers.customer_id"],
-    expected:   "orders.customer_id already has an index (idx_orders_customer_id) — rejected as covered. customers.customer_id is a primary key — rejected.",
-    expectedNote: "Both join columns are already covered. The engine returns rejected candidates, not new recommendations.",
-    why:        "The engine checks existing indexes before recommending. Since both sides are already indexed, no new index is needed.",
-    concepts:   ["JOIN", "Primary Key", "Index Scan"],
+    diffLevel: 2,
+    typeColor: "ex-type-orderby",
+    demonstrates: "Filtering invoices within a date range.",
+    detects: ["Range filter: Invoice.InvoiceDate"],
+    expected: "Evaluate an index on InvoiceDate using query-plan evidence.",
+    expectedNote: "The actual recommendation depends on the query plan and existing indexes.",
+    why: "A suitable index may help SQLite locate rows within the requested date range.",
+    concepts: ["Range Filter", "WHERE", "Index Scan"],
   },
   {
-    type:       "ORDER BY",
-    difficulty: "Beginner",
-    diffLevel:  1,
-    typeColor:  "ex-type-orderby",
-    demonstrates: "Sort-column indexing — eliminating the sort step.",
-    detects:    ["ORDER BY column: products.unit_price"],
-    expected:   "CREATE INDEX on products(unit_price)",
-    expectedNote: "The engine detects unit_price in ORDER BY and recommends an index. Score ≈ 15 (sort evidence). Confidence: low.",
-    why:        "An index on unit_price stores values in sorted order. SQLite can read them in sequence without a separate sort operation.",
-    concepts:   ["ORDER BY", "Index Scan", "Query Plan"],
+    type: "COMPOSITE",
+    difficulty: "Intermediate",
+    diffLevel: 2,
+    typeColor: "ex-type-composite",
+    demonstrates: "Customer filtering combined with descending date sorting.",
+    detects: ["Equality filter: Invoice.CustomerId", "ORDER BY: Invoice.InvoiceDate"],
+    expected: "Evaluate index coverage for CustomerId and InvoiceDate.",
+    expectedNote: "Column order and the existing query plan determine whether a composite index helps.",
+    why: "A suitable composite index may support filtering and ordering together.",
+    concepts: ["Composite Index", "WHERE", "ORDER BY"],
   },
   {
-    type:       "COMPOSITE",
+    type: "JOIN",
+    difficulty: "Intermediate",
+    diffLevel: 2,
+    typeColor: "ex-type-join",
+    demonstrates: "Joining customers and invoices with a country filter.",
+    detects: ["JOIN: Customer.CustomerId = Invoice.CustomerId", "Equality filter: Customer.Country"],
+    expected: "Evaluate join and filter index coverage.",
+    expectedNote: "Existing indexes and the actual SQLite plan determine which candidates are useful.",
+    why: "Indexes may support filtering and lookups during join processing.",
+    concepts: ["JOIN", "Equality Filter", "Query Plan"],
+  },
+  {
+    type: "JOIN",
     difficulty: "Advanced",
-    diffLevel:  3,
-    typeColor:  "ex-type-composite",
-    demonstrates: "Composite equality index plus a separate sort-column candidate.",
-    detects:    [
-      "Equality filter: orders.customer_id",
-      "Equality filter: orders.status",
-      "ORDER BY column: orders.order_date",
-    ],
-    expected:   "Composite index on orders(customer_id, status), plus orders(order_date)",
-    expectedNote: "The equality columns form the 65-point composite candidate. ORDER BY produces a separate 15-point order_date candidate.",
-    why:        "The implemented rules combine multiple equality filters in predicate order. ORDER BY is evaluated as its own candidate rather than being appended to the equality composite.",
-    concepts:   ["Composite Index", "WHERE", "ORDER BY", "Selectivity"],
+    diffLevel: 3,
+    typeColor: "ex-type-join",
+    demonstrates: "Multi-table joins with an artist-name filter.",
+    detects: ["JOIN: Track and Album", "JOIN: Album and Artist", "Filter: Artist.Name"],
+    expected: "Evaluate existing join-key indexes and the Artist.Name filter.",
+    expectedNote: "Do not add indexes where existing primary-key or foreign-key coverage is sufficient.",
+    why: "Multiple joins require considering lookup columns and filtering conditions together.",
+    concepts: ["JOIN", "Foreign Key", "Multi-table Query"],
   },
   {
-    type:       "NO INDEX",
+    type: "GROUP BY",
+    difficulty: "Advanced",
+    diffLevel: 3,
+    typeColor: "ex-type-composite",
+    demonstrates: "Aggregating invoice totals for each customer.",
+    detects: ["GROUP BY: CustomerId, FirstName, LastName", "Aggregate: SUM(Invoice.Total)"],
+    expected: "Inspect grouping and sorting operations in the query plan.",
+    expectedNote: "An index recommendation should be based on actual plan evidence, not grouping alone.",
+    why: "Grouping and ordering can affect query execution, but an index is not automatically beneficial.",
+    concepts: ["GROUP BY", "Aggregation", "ORDER BY"],
+  },
+  {
+    type: "ORDER BY",
+    difficulty: "Intermediate",
+    diffLevel: 2,
+    typeColor: "ex-type-orderby",
+    demonstrates: "Filtering tracks by album and sorting by track name.",
+    detects: ["Equality filter: Track.AlbumId", "ORDER BY: Track.Name"],
+    expected: "Evaluate whether an index can support filtering and sorting.",
+    expectedNote: "A composite index may help, depending on the existing indexes and query plan.",
+    why: "The ordering of columns in a composite index affects which query operations it can support.",
+    concepts: ["Composite Index", "WHERE", "ORDER BY"],
+  },
+  {
+    type: "EXISTING INDEX",
     difficulty: "Beginner",
-    diffLevel:  1,
-    typeColor:  "ex-type-noindex",
-    demonstrates: "When no index can help — no filter, join, sort, or group.",
-    detects:    ["No WHERE, JOIN, ORDER BY, or GROUP BY detected"],
-    expected:   "No recommendation",
-    expectedNote: "The engine finds no index-relevant features. There are no candidates to score or reject.",
-    why:        "An index only helps when the query has a condition to filter, a join to match, or a sort to eliminate. A bare SELECT * has none of these.",
-    concepts:   ["Table Scan", "Index Trade-offs"],
+    diffLevel: 1,
+    typeColor: "ex-type-where",
+    demonstrates: "Filtering tracks by genre.",
+    detects: ["Equality filter: Track.GenreId"],
+    expected: "Check for existing index coverage on GenreId.",
+    expectedNote: "Avoid duplicate indexes if existing coverage is sufficient.",
+    why: "A foreign-key column may already have an index that supports this lookup.",
+    concepts: ["Foreign Key", "Existing Index", "Redundancy"],
+  },
+  {
+    type: "NO FILTER",
+    difficulty: "Beginner",
+    diffLevel: 1,
+    typeColor: "ex-type-noindex",
+    demonstrates: "Selecting all tracks without filtering or sorting.",
+    detects: ["No WHERE, JOIN, ORDER BY, or GROUP BY"],
+    expected: "No additional index is automatically required.",
+    expectedNote: "A full table scan can be appropriate when all rows are requested.",
+    why: "An index is not necessarily useful when the query must retrieve every row.",
+    concepts: ["Table Scan", "Index Trade-offs"],
   },
 ];
+
 
 /* ── Difficulty dots ─────────────────────────────────────────────────────── */
 function DiffDots({ level }) {
@@ -105,6 +163,7 @@ function ConceptPill({ label }) {
 
 /* ── Main component ──────────────────────────────────────────────────────── */
 export default function ExamplesView({ onOpen }) {
+  const [expandedExamples, setExpandedExamples] = useState({});
   return (
     <div className="examples-view">
       <div className="examples-inner">
@@ -159,32 +218,50 @@ export default function ExamplesView({ onOpen }) {
                   <pre className="ex-sql-pre">{ex.query}</pre>
                 </div>
 
-                {/* Detects */}
-                <div className="ex-card-section">
-                  <div className="ex-section-title">What the engine detects</div>
-                  <DetectList items={m.detects} />
-                </div>
+                
+{/* Compact summary */}
+<div className="ex-card-section">
+  <div className="ex-section-title">Key takeaway</div>
+  <div className="ex-expected-value">{m.expected}</div>
+</div>
 
-                {/* Expected */}
-                <div className="ex-card-section ex-expected-section">
-                  <div className="ex-section-title">Expected recommendation</div>
-                  <div className="ex-expected-value">{m.expected}</div>
-                  <div className="ex-expected-note">{m.expectedNote}</div>
-                </div>
+{/* Expandable explanation */}
+<div className="ex-card-section">
+  <button
+    type="button"
+    className="ex-open-btn"
+    onClick={() =>
+      setExpandedExamples((previous) => ({
+        ...previous,
+        [i]: !previous[i],
+      }))
+    }
+    aria-expanded={!!expandedExamples[i]}
+  >
+    {expandedExamples[i] ? "Hide explanation ↑" : "View explanation ↓"}
+  </button>
 
-                {/* Why */}
-                <div className="ex-card-section">
-                  <div className="ex-section-title">Why</div>
-                  <div className="ex-why-text">{m.why}</div>
-                </div>
+  {expandedExamples[i] && (
+    <div className="ex-expanded-details">
+      <div className="ex-section-title">What the engine detects</div>
+      <DetectList items={m.detects} />
 
-                {/* Concepts */}
-                <div className="ex-card-section">
-                  <div className="ex-section-title">Related concepts</div>
-                  <div className="ex-concepts-row">
-                    {m.concepts.map((c) => <ConceptPill key={c} label={c} />)}
-                  </div>
-                </div>
+      <div className="ex-section-title">Expected recommendation details</div>
+      <p>{m.expectedNote}</p>
+
+      <div className="ex-section-title">Why</div>
+      <p>{m.why}</p>
+
+      <div className="ex-section-title">Related concepts</div>
+      <div className="ex-concepts-row">
+        {m.concepts.map((c) => (
+          <ConceptPill key={c} label={c} />
+        ))}
+      </div>
+    </div>
+  )}
+</div>
+
 
                 {/* Footer */}
                 <div className="ex-card-footer">
@@ -226,11 +303,15 @@ export default function ExamplesView({ onOpen }) {
             <div className="htr-card">
               <div className="htr-card-icon">🔢</div>
               <div className="htr-card-title">Score</div>
-              <div className="htr-card-desc">
-                A project-defined educational heuristic based on the candidate's query feature.
-                Equality filter = 45 pts, JOIN = 35 pts, range filter = 25 pts,
-                ORDER BY / GROUP BY = 15 pts, and composite = exactly 65 pts.
-              </div>
+              
+<div className="htr-card-desc">
+  The previous project-defined scoring system has been replaced
+  by rule-based analysis and evidence from isolated SQLite
+  query-plan experiments. Recommendations are not assigned
+  arbitrary points for equality, joins, ranges, sorting, or
+  composite indexes.
+</div>
+
             </div>
             <div className="htr-card">
               <div className="htr-card-icon">📊</div>

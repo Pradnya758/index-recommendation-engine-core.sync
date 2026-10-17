@@ -52,6 +52,8 @@ import RealWorldCasesView from "./views/RealWorldCasesView";
 import TestingView from "./views/TestingView";
 import AiUsageView from "./views/AiUsageView";
 import UserManualView from "./views/UserManualView";
+import SQLWorkspaceView from "./views/SQLWorkspaceView";
+
 
 const NAV_GROUPS = [
   {
@@ -59,6 +61,7 @@ const NAV_GROUPS = [
     items: [
       { id: "analyze", label: "Analyze", icon: Beaker },
       { id: "visualize", label: "Visualize", icon: BarChart3 },
+      { id: "workspace", label: "SQL Workspace", icon: Code2 },
     ],
   },
   {
@@ -679,6 +682,7 @@ export default function App() {
 
         {page === "manual" && <UserManualView onNavigate={navigate} />}
         {page === "developed" && <DevelopedByView />}
+        {page === "workspace" && <SQLWorkspaceView />}
       </main>
     </div>
   );

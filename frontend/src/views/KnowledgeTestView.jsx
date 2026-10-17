@@ -25,13 +25,21 @@ const QUESTIONS = [
     answer: 1,
     explanation: "A full table scan (SCAN in SQLite's EXPLAIN QUERY PLAN) means the database reads every row sequentially. This is slow on large tables and is what indexes are designed to avoid.",
   },
-  {
-    id: 3,
-    q: "Which SQL clause is the PRIMARY driver of index recommendations in this engine?",
-    options: ["SELECT", "FROM", "WHERE", "LIMIT"],
-    answer: 2,
-    explanation: "WHERE clause columns are the primary candidates for indexing because they filter rows. The engine scores equality filters at +45 points and range filters at +25 points.",
-  },
+  
+    
+{
+  id: 3,
+  q: "How does this engine evaluate index candidates from WHERE clauses?",
+  options: [
+    "It assigns 45 points to equality filters",
+    "It assigns points based only on column names",
+    "It analyzes predicates and evaluates candidates using SQLite query-plan evidence",
+    "It creates an index for every WHERE column",
+  ],
+  answer: 2,
+  explanation: "The engine extracts supported predicates, generates candidate indexes, and evaluates them using isolated SQLite query-plan experiments. It does not rely on the old fixed feature weights.",
+},
+
   {
     id: 4,
     q: "In a composite index on (customer_id, status), which query benefits MOST?",
@@ -44,73 +52,90 @@ const QUESTIONS = [
     answer: 1,
     explanation: "A composite index is most useful when the query filters on the leading columns in order. customer_id = 10 AND status = 'paid' matches both columns from the left, making full use of the index.",
   },
-  {
-    id: 5,
-    q: "What does EXPLAIN QUERY PLAN output 'SCAN orders' indicate?",
-    options: [
-      "SQLite is using an index on the orders table",
-      "SQLite is performing a full table scan — reading every row",
-      "SQLite is scanning only the primary key column",
-      "SQLite has found no rows matching the query",
-    ],
-    answer: 1,
-    explanation: "'SCAN tablename' in EXPLAIN QUERY PLAN means SQLite is doing a full table scan with no index. 'SEARCH tablename USING INDEX' would indicate index usage.",
-  },
-  {
-    id: 6,
-    q: "Why does column ORDER matter in a composite index?",
-    options: [
-      "It doesn't — SQLite reorders columns automatically",
-      "Alphabetical order is always best",
-      "SQLite can only use the index if the query matches columns from the left (left-prefix rule)",
-      "The last column is always the most important",
-    ],
-    answer: 2,
-    explanation: "SQLite uses the left-prefix rule: a composite index on (a, b, c) can be used for queries filtering on a, or a+b, or a+b+c — but NOT on b alone or c alone. Equality columns should come first.",
-  },
-  {
-    id: 7,
-    q: "What is a B+ tree?",
-    options: [
-      "A binary search tree where each node has exactly 2 children",
-      "A balanced tree where all data is in leaf nodes, linked for range scans",
-      "A hash table optimized for equality lookups",
-      "A tree structure used only for primary keys",
-    ],
-    answer: 1,
-    explanation: "A B+ tree stores all actual data in leaf nodes, which are linked together. This makes both point lookups (O(log n)) and range scans efficient. SQLite uses B+ trees for indexes.",
-  },
-  {
-    id: 8,
-    q: "Which of these is a trade-off of adding an index?",
-    options: [
-      "SELECT queries become slower",
-      "The table can no longer be updated",
-      "INSERT, UPDATE, and DELETE operations become slightly slower because the index must also be updated",
-      "The primary key is automatically removed",
-    ],
-    answer: 2,
-    explanation: "Every write operation (INSERT, UPDATE, DELETE) must update all indexes on the table. This adds overhead. Indexes improve read performance at the cost of write performance and storage.",
-  },
-  {
-    id: 9,
-    q: "Why does this engine reject a candidate that matches the primary key?",
-    options: [
-      "Primary keys cannot be indexed in SQLite",
-      "Primary keys are automatically indexed — adding another index would be redundant",
-      "The engine only recommends composite indexes",
-      "Primary key columns are never used in WHERE clauses",
-    ],
-    answer: 1,
-    explanation: "SQLite automatically creates an index for the primary key. Recommending another index on the same column(s) would waste storage and write overhead without any benefit.",
-  },
-  {
-    id: 10,
-    q: "A query has ORDER BY order_date. How many points does this contribute to the index score?",
-    options: ["45 points", "35 points", "25 points", "15 points"],
-    answer: 3,
-    explanation: "ORDER BY columns are scored at +15 points. Equality filters score +45, join columns +35, range filters +25. ORDER BY benefits from an index (avoids a sort step) but is less critical than filters.",
-  },
+  
+{
+  id: 5,
+  q: "What does SCAN orders in SQLite EXPLAIN QUERY PLAN indicate?",
+  options: [
+    "SQLite always performs the slowest possible operation",
+    "SQLite scans the table or index",
+    "SQLite has automatically created a new index",
+    "The query returned no rows",
+  ],
+  answer: 1,
+  explanation: "SCAN indicates that SQLite scans a table or index. Whether this is appropriate depends on the query and available data. SEARCH indicates a more targeted lookup, but does not by itself prove faster execution.",
+},
+
+  
+{
+  id: 6,
+  q: "Why does column order matter in a composite index?",
+  options: [
+    "SQLite always sorts index columns alphabetically",
+    "Only the last column can be used",
+    "The leftmost prefix usually determines which constraints can use the index, subject to exceptions",
+    "SQLite automatically rearranges every index for each query",
+  ],
+  answer: 2,
+  explanation: "SQLite generally uses the leftmost columns of a composite index. Equality predicates, range predicates, sorting, grouping, and exceptions such as skip-scan affect its usefulness. Column order is a design decision that should be evaluated against the query plan.",
+},
+
+  
+{
+  id: 7,
+  q: "Which statement about SQLite's B-tree structures is correct?",
+  options: [
+    "SQLite uses only binary search trees",
+    "SQLite uses B-tree structures for tables and indexes",
+    "SQLite uses B-trees only for primary keys",
+    "Every index lookup is guaranteed to be faster than a table scan",
+  ],
+  answer: 1,
+  explanation: "SQLite uses B-tree structures for tables and indexes. They organize keys to support lookups and ordered access, but the best access path depends on the query, schema, and data.",
+},
+
+  
+{
+  id: 8,
+  q: "What is an important trade-off of adding an index?",
+  options: [
+    "Indexes eliminate all full table scans",
+    "Indexes prevent UPDATE and DELETE operations",
+    "Indexes consume storage and add maintenance work when data changes",
+    "Indexes guarantee faster execution for every SELECT",
+  ],
+  answer: 2,
+  explanation: "Indexes consume storage and must be maintained during relevant INSERT, UPDATE, and DELETE operations. They may improve particular access paths, but their benefits depend on the workload.",
+},
+
+ 
+{
+  id: 9,
+  q: "Why should the engine inspect primary-key access before proposing another index?",
+  options: [
+    "SQLite cannot search using primary keys",
+    "Existing primary-key or rowid access may already support the lookup",
+    "Every primary key requires an additional index",
+    "Primary keys cannot appear in WHERE clauses",
+  ],
+  answer: 1,
+  explanation: "SQLite may already have an appropriate primary-key or rowid access path. The engine should inspect the table definition and existing indexes before proposing a potentially redundant index.",
+},
+
+  
+{
+  id: 10,
+  q: "What does the SUPPORTED evidence status mean?",
+  options: [
+    "The query is guaranteed to run faster",
+    "The candidate has relevant supporting query-plan evidence",
+    "The candidate received at least 65 points",
+    "The index is always the best choice",
+  ],
+  answer: 1,
+  explanation: "SUPPORTED means the isolated experiment produced relevant evidence, such as candidate-index use or a favorable change in the relevant plan operation. It does not establish a measured execution-time improvement.",
+},
+
   {
     id: 11,
     q: "What is a covering index?",
@@ -121,24 +146,33 @@ const QUESTIONS = [
       "An index created automatically by the database",
     ],
     answer: 1,
-    explanation: "A covering index includes all columns the query needs (in SELECT, WHERE, ORDER BY). SQLite can answer the query entirely from the index without touching the main table rows — the fastest possible access.",
+    explanation: "A covering index contains the columns needed by a query so SQLite may answer it without fetching the corresponding table rows. Check EXPLAIN QUERY PLAN for evidence such as USING COVERING INDEX. A covering index is not automatically the best choice for every workload.",
   },
-  {
-    id: 12,
-    q: "Which score threshold gives 'high' confidence in this engine?",
-    options: ["Score ≥ 25", "Score ≥ 35", "Score ≥ 50", "Score ≥ 65"],
-    answer: 3,
-    explanation: "The engine assigns confidence as: high (score ≥ 65), medium (score ≥ 35), low (below 35). A composite predicate candidate starts at +65, which is why composite recommendations often have high confidence.",
-  },
+  
+{
+  id: 12,
+  q: "When should an index recommendation be classified as UNCERTAIN?",
+  options: [
+    "Whenever a query contains a WHERE clause",
+    "Whenever the candidate has multiple columns",
+    "When the experiment fails or the available evidence is insufficient",
+    "Whenever SQLite uses a SEARCH operation",
+  ],
+  answer: 2,
+  explanation: "UNCERTAIN is appropriate when an experiment fails or cannot establish a reliable result, such as when required schema or data is unavailable or the SQL cannot be tested adequately.",
+},
+
 ];
+
 
 const REFLECTIONS = [
   "Can I identify index candidates from WHERE, JOIN, ORDER BY, and GROUP BY clauses?",
-  "Can I explain SCAN versus SEARCH in a SQLite query plan?",
-  "Can I choose column order for a composite index using the left-prefix rule?",
-  "Can I explain when an index may hurt writes or be ignored by the planner?",
-  "Can I trace this project's workflow from SQL validation to recommendation evidence?",
+  "Can I explain SCAN versus SEARCH without assuming one is always faster?",
+  "Can I explain composite-index leftmost-prefix behavior and its exceptions?",
+  "Can I distinguish SUPPORTED, UNCHANGED, and UNCERTAIN evidence?",
+  "Can I explain index redundancy, storage costs, and write overhead?",
 ];
+
 
 export default function KnowledgeTestView() {
   const [current, setCurrent] = useState(0);

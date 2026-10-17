@@ -1,5 +1,6 @@
 
 from __future__ import annotations
+from app.services.sqlite_rules import get_sqlite_rules
 
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -118,7 +119,6 @@ def build_recommendations(
             candidate.columns,
         )
         drop_sql = f'DROP INDEX IF EXISTS "{index_name}";'
-
         recommendations.append(
             IndexRecommendation(
                 table=candidate.table,
@@ -129,6 +129,13 @@ def build_recommendations(
                 priority=priority,
                 reasons=reasons,
                 evidence=evidence,
+                rules=_match_sqlite_rules(
+                    reasons,
+                    candidate,
+                    features=features,
+                    database_evidence=database_evidence,
+                ),
+                evidence_status=_evidence_status(database_evidence),
             )
         )
 
@@ -299,6 +306,28 @@ def _unique(values: list[str]) -> list[str]:
     return result
 
 
+def _evidence_status(database_evidence: CandidateEvidence) -> str:
+    """Classify observed SQLite plan evidence without claiming faster execution."""
+    if not database_evidence.experiment_succeeded:
+        return "UNCERTAIN"
+
+    if not database_evidence.candidate_used and not database_evidence.plan_changed:
+        return "UNCHANGED"
+
+    if (
+        database_evidence.candidate_used
+        and (
+            database_evidence.scan_replaced_by_search
+            or database_evidence.temp_btree_removed
+        )
+    ):
+        return "SUPPORTED"
+
+    if not database_evidence.plan_changed:
+        return "UNCHANGED"
+
+    return "UNCERTAIN"
+
 def _recommendation_status(database_evidence: CandidateEvidence) -> str:
     """
     Recommend only when the candidate is used and the query plan
@@ -364,6 +393,7 @@ def _explain_evidence(
 ) -> tuple[list[str], list[RecommendationEvidence]]:
     reasons = list(candidate.reasons)
     evidence = list(candidate.evidence)
+    
     column_label = ", ".join(candidate.columns)
 
     if not database_evidence.experiment_succeeded:
@@ -550,3 +580,168 @@ def _create_index_sql(
         f'CREATE INDEX "{quoted_index}" '
         f'ON "{quoted_table}" ({quoted_columns});'
     )
+
+
+
+
+def _match_sqlite_rules(
+    reasons: list[str],
+    candidate: _Candidate | None = None,
+    features: QueryFeatures | None = None,
+    database_evidence: CandidateEvidence | None = None,
+) -> list[dict[str, str]]:
+    """Match catalogue rules against explicit analysis evidence."""
+    import re
+
+    reason_text = " ".join(reasons).lower()
+    matched_ids: set[str] = set()
+
+    def contains_any(*phrases: str) -> bool:
+        return any(phrase in reason_text for phrase in phrases)
+
+    def contains_word(word: str) -> bool:
+        return re.search(
+            rf"\b{re.escape(word.lower())}\b",
+            reason_text,
+        ) is not None
+
+    # R1: Explicit predicate/filter evidence.
+    if contains_any(
+        "equality filter",
+        "range filter",
+        "predicate column",
+        "search condition",
+        "where clause",
+    ):
+        matched_ids.add("R1")
+
+    # R2: Composite prefix/range evidence, only for composite candidates.
+    is_composite = candidate is not None and len(candidate.columns) > 1
+
+    if is_composite and contains_any(
+        "equality columns followed by a range column",
+        "composite prefix",
+        "leftmost prefix",
+    ):
+        matched_ids.add("R2")
+
+   
+    # R3: Only attach when SQLite confirms a covering-index plan.
+    if (
+        database_evidence is not None
+        and database_evidence.experiment_succeeded
+        and database_evidence.candidate_used
+        and any(
+            "covering index" in detail.lower()
+            for detail in database_evidence.candidate_plan
+        )
+    ):
+        matched_ids.add("R3")
+
+    
+    # R4: Sorting/grouping, based on extracted query features.
+    if features is not None and (
+        features.order_by_columns or features.group_by_columns
+    ):
+        matched_ids.add("R4")
+    elif contains_any(
+        "order by",
+        "group by",
+        "ordering",
+        "grouping",
+        "temporary b-tree",
+        "temp b-tree",
+    ):
+        matched_ids.add("R4")
+
+    # R5: Join columns, based on extracted query features.
+    if features is not None and features.join_columns:
+        matched_ids.add("R5")
+    elif contains_any(
+        "participates in a join",
+        "join key",
+        "join column",
+        "join condition",
+    ):
+        matched_ids.add("R5")
+
+
+    
+
+    # R6: Match expression-index requirements or LIKE patterns
+    # that may be eligible for SQLite's LIKE optimization.
+    like_patterns = features.like_patterns if features is not None else []
+
+    has_eligible_like_pattern = any(
+        pattern
+        and not pattern.startswith(("%", "_"))
+        for pattern in like_patterns
+    )
+
+    has_expression_or_collation = (
+        features is not None
+        and bool(features.expression_columns or features.collations)
+    )
+
+    if has_eligible_like_pattern or has_expression_or_collation:
+        matched_ids.add("R6")
+    elif contains_any("expression index", "function-wrapped", "collation"):
+        matched_ids.add("R6")
+
+
+
+
+    # R7: Explicit uncertainty or unavailable evidence/statistics.
+    if contains_any(
+        "statistics unavailable",
+        "insufficient evidence",
+        "evidence unavailable",
+        "uncertain",
+        "statistics are missing",
+    ):
+        matched_ids.add("R7")
+
+    # R8: Existing-index/redundancy evidence.
+    if contains_any(
+        "redundant index",
+        "redundant",
+        "existing index",
+        "already indexed",
+        "already covers",
+    ):
+        matched_ids.add("R8")
+
+    # R9: Primary-key/rowid evidence.
+    if contains_word("rowid") or contains_any(
+        "primary key",
+        "primary-key",
+    ):
+        matched_ids.add("R9")
+
+    # R10: Explicit write/storage overhead evidence.
+    if contains_any(
+        "write overhead",
+        "storage overhead",
+        "index maintenance",
+        "write cost",
+    ):
+        matched_ids.add("R10")
+
+    # R11: Composite equality filters followed by ORDER BY columns.
+    if is_composite and contains_any(
+        "equality-filter columns followed by order by columns",
+        "equality columns followed by order by columns",
+    ):
+        matched_ids.add("R11")
+
+    # Preserve catalogue order and the existing API response structure.
+    return [
+        {
+            "rule_id": rule.rule_id,
+            "title": rule.title,
+            "description": rule.description,
+            "source_url": rule.source_url,
+        }
+        for rule in get_sqlite_rules()
+        if rule.rule_id in matched_ids
+    ]

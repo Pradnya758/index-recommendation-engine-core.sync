@@ -144,3 +144,48 @@ export function askFollowup(question, rec, plan) {
     }),
   });
 }
+
+/* SQL Workspace */
+
+export function createWorkspace() {
+  return request("/workspace", {
+    method: "POST",
+  });
+}
+
+export function executeWorkspaceSQL(sessionId, sql, parameters = []) {
+  return request("/workspace/execute", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      sql,
+      parameters,
+    }),
+  });
+}
+
+export function getWorkspaceSchema(sessionId) {
+  return request(`/workspace/${sessionId}/schema`);
+}
+
+export function explainWorkspaceQuery(sessionId, query) {
+  return request("/workspace/query-plan", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      query,
+    }),
+  });
+}
+
+export function deleteWorkspace(sessionId) {
+  return request(`/workspace/${sessionId}`, {
+    method: "DELETE",
+  });
+}

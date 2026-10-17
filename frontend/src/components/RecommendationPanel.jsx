@@ -33,6 +33,94 @@ export default function RecommendationPanel({ result, loading }) {
     (rec) => rec.recommendation === "not_recommended"
   );
 
+  const statusLabel = (status) => {
+    switch (status) {
+      case "SUPPORTED":
+        return "✓ SUPPORTED";
+      case "UNCHANGED":
+        return "— UNCHANGED";
+      default:
+        return "? UNCERTAIN";
+    }
+  };
+
+  const statusClass = (status) => {
+    switch (status) {
+      case "SUPPORTED":
+        return "supported";
+      case "UNCHANGED":
+        return "unchanged";
+      default:
+        return "uncertain";
+    }
+  };
+
+  const renderRules = (rules) => {
+    if (!rules?.length) {
+      return (
+        <p
+          style={{
+            color: "var(--text2)",
+            fontSize: "12px",
+          }}
+        >
+          No specific rule was matched for this candidate yet.
+        </p>
+      );
+    }
+
+    return (
+      <ul className="rec-list">
+        {rules.map((rule) => (
+          <li key={rule.rule_id}>
+            <strong>
+              {rule.rule_id} — {rule.title}
+            </strong>
+
+            <div>{rule.description}</div>
+
+            {rule.source_url && (
+              <a
+                href={rule.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View documentation
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
+  const renderEvidence = (evidence) => {
+    if (!evidence?.length) {
+      return (
+        <p
+          style={{
+            color: "var(--text2)",
+            fontSize: "12px",
+          }}
+        >
+          No query-plan evidence is available.
+        </p>
+      );
+    }
+
+    return (
+      <ul className="rec-list">
+        {evidence.map((item, index) => (
+          <li
+            key={`${item.feature}-${item.column}-${index}`}
+          >
+            {item.detail}
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
   if (!recommendations.length) {
     return (
       <div className="no-rec">
@@ -100,11 +188,27 @@ export default function RecommendationPanel({ result, loading }) {
             </div>
 
             <div className="rec-score-wrap">
-              <div className="rec-score">✓</div>
+              <div className="rec-score">
+                {rec.evidence_status === "SUPPORTED"
+                  ? "✓"
+                  : rec.evidence_status === "UNCHANGED"
+                    ? "—"
+                    : "?"}
+              </div>
+
               <div className="rec-score-lbl">
-                SQLite evidence
+                {statusLabel(rec.evidence_status)}
               </div>
             </div>
+          </div>
+
+          {/* Evidence status explanation */}
+          <div className={`rec-evidence-status ${statusClass(rec.evidence_status)}`}>
+            {rec.evidence_status === "SUPPORTED"
+              ? "The query plan provides relevant evidence supporting this candidate. This does not prove faster execution."
+              : rec.evidence_status === "UNCHANGED"
+                ? "The experiment did not show a relevant query-plan change."
+                : "The available experiment evidence is insufficient to determine the candidate's effect."}
           </div>
 
           {/* Create index SQL */}
@@ -124,6 +228,7 @@ export default function RecommendationPanel({ result, loading }) {
           </div>
 
           <div className="rec-body">
+            {/* Reasons */}
             <div>
               <div className="rec-sec-title">
                 Why this helps
@@ -132,7 +237,9 @@ export default function RecommendationPanel({ result, loading }) {
               {rec.reasons?.length > 0 ? (
                 <ul className="rec-list">
                   {rec.reasons.map((reason, index) => (
-                    <li key={`${reason}-${index}`}>{reason}</li>
+                    <li key={`${reason}-${index}`}>
+                      {reason}
+                    </li>
                   ))}
                 </ul>
               ) : (
@@ -147,20 +254,41 @@ export default function RecommendationPanel({ result, loading }) {
               )}
             </div>
 
+            {/* Query evidence */}
             <div>
               <div className="rec-sec-title">
                 Query evidence
               </div>
 
-              <ul className="rec-list">
-                {(rec.evidence ?? []).map((item, index) => (
-                  <li
-                    key={`${item.feature}-${item.column}-${index}`}
-                  >
-                    {item.detail}
-                  </li>
-                ))}
-              </ul>
+              {renderEvidence(rec.evidence)}
+            </div>
+
+            {/* Rule catalogue references */}
+            <div>
+              <div className="rec-sec-title">
+                Applicable SQLite rules
+              </div>
+
+              {renderRules(rec.rules)}
+            </div>
+
+            {/* Index overhead */}
+            <div>
+              <div className="rec-sec-title">
+                Index trade-offs
+              </div>
+
+              <p
+                style={{
+                  color: "var(--text2)",
+                  fontSize: "12px",
+                }}
+              >
+                An additional index consumes storage and can add
+                maintenance work to INSERT, UPDATE and DELETE
+                operations. Consider the overall workload before
+                creating it.
+              </p>
             </div>
           </div>
         </article>
@@ -183,9 +311,9 @@ export default function RecommendationPanel({ result, loading }) {
               marginBottom: "10px",
             }}
           >
-            These candidate indexes were tested against SQLite's
-            query plan, but the available evidence was insufficient
-            to recommend them.
+            These candidates were tested against SQLite's query
+            plan, but the available evidence was insufficient to
+            recommend them.
           </p>
 
           <div className="rejected-list">
@@ -198,10 +326,29 @@ export default function RecommendationPanel({ result, loading }) {
                   {rec.table}({rec.columns.join(", ")})
                 </strong>
 
+                <div
+                  className={`rec-evidence-status ${statusClass(rec.evidence_status)}`}
+                  style={{ marginTop: "8px" }}
+                >
+                  {statusLabel(rec.evidence_status)}
+                </div>
+
                 <div style={{ marginTop: "4px" }}>
                   {(rec.reasons ?? []).map((reason, index) => (
-                    <div key={`${reason}-${index}`}>• {reason}</div>
+                    <div key={`${reason}-${index}`}>
+                      • {reason}
+                    </div>
                   ))}
+                </div>
+
+                <div style={{ marginTop: "8px" }}>
+                  <strong>Applicable rules</strong>
+                  {renderRules(rec.rules)}
+                </div>
+
+                <div style={{ marginTop: "8px" }}>
+                  <strong>Query evidence</strong>
+                  {renderEvidence(rec.evidence)}
                 </div>
               </div>
             ))}
@@ -236,7 +383,10 @@ export default function RecommendationPanel({ result, loading }) {
                 className="rejected-item"
                 key={`${candidate.table}-${candidate.columns.join("-")}`}
               >
-                {candidate.reason}
+                <strong>
+                  {candidate.table}({candidate.columns.join(", ")})
+                </strong>
+                <div>{candidate.reason}</div>
               </div>
             ))}
           </div>

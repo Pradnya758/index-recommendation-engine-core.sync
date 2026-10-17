@@ -42,16 +42,16 @@ const STEPS = [
     icon: "💡",
     title: "Read the Index Recommendation",
     click: "Click the 'Recommendations' tab (the default tab after analysis).",
-    expect: "One or more recommendation cards appear, each showing: the table, the columns to index, the CREATE INDEX SQL, a project-defined heuristic score, a separate confidence level (high/medium/low), the reasons, and the query evidence.",
-    meaning: "The score comes only from the project's fixed query-feature heuristics. Confidence is a separate label derived from score thresholds. A rejected candidate means an existing index or primary key already covers that column.",
-    tip: "If you see 'No new index recommended', the query is already well-covered. Check the Rejected Candidates section to see why.",
+    expect: "Recommendation cards show the candidate table and columns, suggested CREATE INDEX SQL, applicable SQLite rule IDs, reasons, evidence status (SUPPORTED, UNCHANGED, or UNCERTAIN), and query-plan evidence.",
+meaning: "Recommendations use SQL feature analysis, schema inspection, SQLite-specific rules R1–R11, and isolated before-and-after query-plan experiments. A favorable plan change does not prove faster execution; actual performance must be measured separately.",
+tip: "If you see 'No new index recommended', the query is already well-covered. Check the Rejected Candidates section to see why.",
   },
   {
     n: 7,
     icon: "🪜",
     title: "Open Analysis Steps",
     click: "Click the 'Analysis Steps' tab in the centre panel.",
-    expect: "An 8-step walkthrough appears: SQL Input → Parsing → Feature Extraction → Schema Inspection → Candidate Generation → Filtering → Scoring → Output.",
+    expect: "An 8-step walkthrough appears: SQL Input → Parsing → Feature Extraction → Schema Inspection → Candidate Generation → Evidence Validation → Filtering → Output.",
     meaning: "Each step explains what the engine did at that stage, what it found, and why. This is the educational core of the application — it makes the recommendation transparent and explainable.",
     tip: "Open Visualize from the sidebar when you are ready to interact with the visual diagrams.",
   },
@@ -251,30 +251,75 @@ export default function UserManualView({ onNavigate }) {
         </div>
       </div>
 
-      {/* scoring reference */}
+      
+      {/* SQLite rules and evidence reference */}
       <div className="um-section">
-        <div className="um-section-title">Scoring Quick Reference</div>
+        <div className="um-section-title">SQLite Rules &amp; Evidence Quick Reference</div>
+
         <p className="um-score-note">
-          These are fixed, project-defined educational heuristic scores. Database evidence does not
-          add bonuses, and a composite candidate scores exactly 65. Scores are not derived from a
-          dataset, benchmark, machine-learning model, SQLite cost model, or measured performance.
+          Recommendations use SQL feature analysis, schema inspection,
+          SQLite-specific rules, and isolated query-plan experiments.
+          The engine does not use the old fixed feature-score weights.
+          A favorable query-plan change does not guarantee faster execution.
         </p>
+
         <div className="um-score-table-wrap">
           <table className="um-score-table">
             <thead>
-              <tr><th>Evidence type</th><th>Points</th><th>Confidence threshold</th></tr>
+              <tr>
+                <th>Rule</th>
+                <th>What it checks</th>
+              </tr>
             </thead>
             <tbody>
-              <tr><td>Equality / WHERE equality condition</td><td>+45</td><td rowSpan={2} className="um-conf-cell">≥ 65 → High</td></tr>
-              <tr><td>JOIN condition</td><td>+35</td></tr>
-              <tr><td>Range condition</td><td>+25</td><td rowSpan={2} className="um-conf-cell">≥ 35 → Medium</td></tr>
-              <tr><td>ORDER BY</td><td>+15</td></tr>
-              <tr><td>GROUP BY</td><td>+15</td><td rowSpan={2} className="um-conf-cell">&lt; 35 → Low</td></tr>
-              <tr><td>Composite index candidate</td><td>+65</td></tr>
+              <tr><td>R1</td><td>Search conditions and filters</td></tr>
+              <tr><td>R2</td><td>Composite indexes and leftmost-prefix behavior</td></tr>
+              <tr><td>R3</td><td>Covering-index opportunities</td></tr>
+              <tr><td>R4</td><td>Sorting and grouping</td></tr>
+              <tr><td>R5</td><td>Join access paths</td></tr>
+              <tr><td>R6</td><td>Expressions, functions, and LIKE</td></tr>
+              <tr><td>R7</td><td>Statistics and uncertainty</td></tr>
+              <tr><td>R8</td><td>Redundant or overlapping indexes</td></tr>
+              <tr><td>R9</td><td>Rowid and primary-key access</td></tr>
+              <tr><td>R10</td><td>Index storage and write overhead</td></tr>
+              <tr><td>R11</td><td>Composite-index column-order design</td></tr>
             </tbody>
           </table>
         </div>
+
+        <div className="um-score-table-wrap">
+          <table className="um-score-table">
+            <thead>
+              <tr>
+                <th>Evidence status</th>
+                <th>Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>SUPPORTED</td>
+                <td>The experiment provides relevant evidence supporting the candidate.</td>
+              </tr>
+              <tr>
+                <td>UNCHANGED</td>
+                <td>The experiment did not show a relevant query-plan change.</td>
+              </tr>
+              <tr>
+                <td>UNCERTAIN</td>
+                <td>The experiment failed or the available evidence is insufficient.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="um-score-note">
+          Indexes consume storage and can add work to INSERT, UPDATE, and DELETE
+          operations. Inspect existing indexes and rejected candidates before
+          deciding whether to add an index. Query-plan evidence is not a
+          substitute for measured execution-time benchmarks.
+        </p>
       </div>
+
 
     </div>
   );

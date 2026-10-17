@@ -73,46 +73,61 @@ def _local_explanation(payload: dict) -> dict:
         )
     query_summary = " ".join(parts) if parts else "The query selects rows from the database."
 
+
     # ── features detected ──
     feature_lines = []
+
     if eq_cols:
         for c in eq_cols:
             feature_lines.append(
-                f"• {c['table']}.{c['column']} — equality filter (+45 pts): "
-                f"filtering on an exact value is highly selective and benefits most from an index."
+                f"• {c['table']}.{c['column']} — equality predicate: "
+                "a candidate index may support lookup by an exact value; "
+                "actual usefulness depends on the query plan and data."
             )
+
     if rng_cols:
         for c in rng_cols:
             feature_lines.append(
-                f"• {c['table']}.{c['column']} — range filter (+25 pts): "
-                f"an index lets SQLite jump to the start of the range instead of scanning every row."
+                f"• {c['table']}.{c['column']} — range predicate: "
+                "an index may support a range lookup, subject to index "
+                "column order and SQLite's planner decisions."
             )
+
     if join_cols:
         for c in join_cols:
             feature_lines.append(
-                f"• {c['table']}.{c['column']} — join column (+35 pts): "
-                f"an index speeds up row matching between tables."
+                f"• {c['table']}.{c['column']} — join predicate: "
+                "an index may help a join lookup; inspect the join plan "
+                "and existing indexes before recommending one."
             )
+
     if ord_cols:
         for c in ord_cols:
             feature_lines.append(
-                f"• {c['table']}.{c['column']} — ORDER BY (+15 pts): "
-                f"if the index is already sorted on this column, SQLite can skip the sort step."
+                f"• {c['table']}.{c['column']} — ORDER BY: "
+                "check whether a candidate index avoids a temporary "
+                "sorting operation in the query plan."
             )
+
     if grp_cols:
         for c in grp_cols:
             feature_lines.append(
-                f"• {c['table']}.{c['column']} — GROUP BY (+15 pts): "
-                f"an index on the grouping column reduces the work needed to aggregate rows."
+                f"• {c['table']}.{c['column']} — GROUP BY: "
+                "check whether a candidate index avoids a temporary "
+                "B-tree for grouping."
             )
-    features_text = "\n".join(feature_lines) if feature_lines else "No indexable features were detected."
+
+    features_text = (
+        "\n".join(feature_lines)
+        if feature_lines
+        else "No indexable features were detected."
+    )
 
     # ── why this index ──
     if rec0:
         cols_str = ", ".join(rec0["columns"])
         why_parts = [
-            f"The engine recommended an index on {rec0['table']}({cols_str}) "
-            f"with a score of {rec0['score']} ({rec0['confidence']} confidence)."
+            f"The engine recommended an index on {rec0['table']}({cols_str})."
         ]
         if rec0.get("reasons"):
             why_parts.append("Reasons given by the engine:")
@@ -151,28 +166,24 @@ def _local_explanation(payload: dict) -> dict:
     # ── technical explanation ──
     if rec0:
         tech = (
-            f"The rule-based engine scored candidates using evidence weights: "
-            f"equality filter +45, join +35, range filter +25, ORDER BY/GROUP BY +15, "
-            f"composite predicate +65. "
-            f"The top candidate {rec0['table']}({', '.join(rec0['columns'])}) "
-            f"received the project-defined score {rec0['score']}. "
-            f"Candidates whose column prefix matched an existing index or primary key "
-            f"were rejected. "
-            f"The CREATE INDEX statement is: {rec0['create_index_sql']}"
-        )
+        f"The rule-based engine considered the query features and recommended "
+        f"{rec0['table']}({', '.join(rec0['columns'])}). "
+        f"The recommendation should be evaluated using the before-and-after "
+        f"EXPLAIN QUERY PLAN evidence. "
+        f"The CREATE INDEX statement is: {rec0.get('create_index_sql', 'not available')}"
+    )
     else:
         tech = (
-            "All generated candidates were rejected because existing indexes or "
-            "primary keys already cover the access patterns in this query. "
-            "Adding a duplicate index would increase write overhead without "
-            "improving read performance."
-        )
+        "No new index was recommended. Review the existing indexes and query-plan "
+        "evidence to understand whether an additional index is needed."
+    )
 
     # ── trade-offs ──
     if rec0:
         tradeoffs = textwrap.dedent(f"""
-            • Read performance: SELECT queries filtering or sorting on \
-({', '.join(rec0['columns'])}) will be faster.
+            • Read behavior: the candidate may change the access path for queries
+  filtering or sorting on these columns. The query-plan experiment does
+  not establish an execution-time improvement.
             • Write overhead: every INSERT, UPDATE, or DELETE on \
 {rec0['table']} must also update the index, adding a small cost.
             • Storage: the index occupies additional disk space proportional \
@@ -261,7 +272,7 @@ def _build_user_prompt(payload: dict) -> str:
         r = recs[0]
         lines += [
             f"Recommended index: {r['table']}({', '.join(r['columns'])})",
-            f"Score: {r['score']}  Confidence: {r['confidence']}",
+            f"Evidence status: {r.get('status', 'not available')}",
             f"CREATE INDEX: {r['create_index_sql']}",
             f"Reasons: {'; '.join(r['reasons'])}",
         ]
@@ -316,88 +327,169 @@ async def _openai_explanation(payload: dict, api_key: str) -> dict:
 
 # ── follow-up answer ──────────────────────────────────────────────────────────
 
+
 _FOLLOWUP_PATTERNS: list[tuple[list[str], str]] = [
     (
-        ["composite", "multiple column", "why not single"],
-        "A composite index covers multiple columns in one structure. "
-        "When a query filters on several columns together, a composite index "
-        "lets SQLite satisfy all conditions with a single index lookup instead "
-        "of multiple separate lookups. The rule-based engine creates composites "
-        "when it detects multiple equality filters on the same table, placing "
-        "equality columns first and any range column last — matching SQLite's "
-        "left-prefix rule.",
+        ["simple beginner-friendly", "explain simply", "explain simple"],
+        "In simple terms, an index is like a book's index: it helps SQLite "
+        "find matching rows without checking every row. For this query, "
+        "an index on Invoice(CustomerId, InvoiceDate) may help SQLite find "
+        "a customer's invoices and support date ordering. Whether it actually "
+        "helps depends on the existing indexes and the query plan.",
     ),
     (
-        ["explain query plan", "what does", "scan", "search"],
-        "EXPLAIN QUERY PLAN shows how SQLite intends to execute your query. "
-        "'SCAN tablename' means SQLite will read every row — a full table scan. "
-        "'SEARCH tablename USING INDEX' means SQLite will use an index to jump "
-        "directly to matching rows, which is much faster for large tables. "
-        "The goal of index recommendations is to turn SCANs into SEARCHes.",
+        ["detailed technical", "explain technically", "technical explanation"],
+        "Technically, the query filters Invoice using CustomerId and orders "
+        "the output by InvoiceDate in descending order. A composite index "
+        "on (CustomerId, InvoiceDate) may support the equality lookup followed "
+        "by ordering. SQLite's actual plan, existing indexes, and index sort "
+        "direction determine whether the candidate improves the access path. "
+        "A plan change alone does not prove lower execution time.",
+    ),
+    (
+        ["concrete example", "give an example", "example of how"],
+        "Suppose Invoice contains thousands of rows, but the query requests "
+        "invoices for CustomerId = 5. Without a suitable index, SQLite may "
+        "scan many invoice rows and then sort the matches by InvoiceDate. "
+        "A suitable composite index could help locate that customer's rows "
+        "and provide them in date order. This is an illustrative example; "
+        "the actual benefit must be checked against the database's query plan.",
+    ),
+    (
+        ["why does this index recommendation matter", "why does this matter"],
+        "This recommendation matters because an appropriate index can reduce "
+        "the work required to find and order a customer's invoices. However, "
+        "indexes also use storage and add work to INSERT, UPDATE, and DELETE "
+        "operations. The recommendation should be accepted only when evidence "
+        "from the actual query and existing schema supports it.",
+    ),
+    (
+    ["when should i not", "should not add", "do not add", "don't add"],
+    "Avoid adding an index when an existing index already supports the query, "
+    "when query-plan evidence shows no meaningful improvement, or when the "
+    "extra storage and write-maintenance costs outweigh the expected benefit. "
+    "Not every filtered column needs an index. Test the candidate against the "
+    "actual query and schema before deciding.",
+    ),
+    (
+        ["composite", "multiple column", "why not single"],
+        "A composite index contains multiple columns in a defined order. "
+        "SQLite can use its leftmost columns when query conditions match the index. "
+        "The useful column order depends on equality conditions, range conditions, "
+        "sorting, grouping, existing indexes, and the actual query plan. "
+        "A composite index is a candidate to evaluate, not automatically the best choice.",
+    ),
+    (
+        ["explain query plan", "what does", "scan", "search", "table scan"],
+        "EXPLAIN QUERY PLAN shows the operations SQLite plans to use. "
+        "SCAN indicates that SQLite scans a table or index; SEARCH indicates a "
+        "more targeted lookup. The plan may also show which index is used and "
+        "whether a covering index or temporary B-tree is involved. "
+        "A SEARCH is not proof that a query runs faster in every situation.",
     ),
     (
         ["trade-off", "tradeoff", "downside", "cost", "overhead"],
-        "Every index speeds up reads but slows down writes slightly, because "
-        "SQLite must update the index on every INSERT, UPDATE, or DELETE. "
-        "Indexes also consume disk space. The rule-based engine only recommends "
-        "indexes only when query features support them, while rejecting candidates "
-        "already covered by a primary key or existing index.",
+        "Indexes consume storage and add maintenance work when rows are inserted, "
+        "updated, or deleted. They can improve particular lookups, joins, or sorts, "
+        "but not every query benefits. Compare the existing and candidate query plans "
+        "and avoid redundant indexes before deciding to add one.",
     ),
     (
         ["score", "confidence", "how is score", "how is confidence"],
-        "The engine uses fixed feature scores: equality filter 45, join 35, "
-        "range filter 25, ORDER BY or GROUP BY 15, and composite predicate exactly 65. "
-        "Confidence is 'high' for score ≥ 65, "
-        "'medium' for ≥ 35, and 'low' below that.",
+        "The current engine evaluates candidates using SQLite-related rules and "
+        "isolated query-plan evidence rather than the former fixed feature weights. "
+        "A candidate may be SUPPORTED when relevant plan evidence improves, "
+        "UNCHANGED when the tested plan does not meaningfully change, or UNCERTAIN "
+        "when the evidence is insufficient. These statuses do not guarantee a "
+        "measured execution-time improvement.",
     ),
     (
         ["primary key", "why not primary"],
-        "Primary keys are automatically indexed by SQLite. The engine rejects "
-        "any candidate whose column prefix matches the primary key to avoid "
-        "creating a redundant index.",
+        "SQLite can use rowid or primary-key access paths, depending on the table "
+        "definition. An additional index may be redundant when an existing access "
+        "path already covers the required lookup. The actual table definition and "
+        "index structure must be checked before rejecting a candidate.",
     ),
     (
         ["existing index", "already covered", "rejected"],
-        "If an existing index already covers the candidate columns (its left "
-        "prefix matches), adding another index would waste space and write "
-        "overhead without improving performance. The engine marks these as "
-        "rejected candidates and explains why.",
+        "An existing index may already support a candidate query. Check its column "
+        "order, uniqueness, partial-index condition, and the query predicates before "
+        "declaring a new index redundant. The recommendation should explain the "
+        "specific existing coverage or other reason for rejection.",
     ),
     (
         ["order", "column order", "why first", "why last"],
-        "In a composite index, SQLite can only use the index efficiently if "
-        "the query predicates match the index columns from left to right "
-        "(the left-prefix rule). Equality columns come first because they "
-        "narrow the search most aggressively; a range column comes last "
-        "because it can only be used after all equality columns are matched.",
+        "Column order matters because SQLite generally uses a composite index from "
+        "its leftmost columns. Equality conditions, range conditions, and requested "
+        "sorting all affect which order is useful. This is not an absolute rule: "
+        "SQLite has exceptions such as skip-scan. Candidate orders should be evaluated "
+        "against the actual query plan and schema.",
     ),
+    (
+        ["what is a database index", "define a database index"],
+        "A database index is an additional data structure that helps SQLite find "
+        "rows using selected columns without necessarily scanning every row. "
+        "Indexes use extra storage and must be maintained when data changes. "
+        "Whether an index helps depends on the query and the available data.",
+    ),
+    (
+        ["b+ tree", "b-tree", "btree"],
+        "SQLite commonly uses B-tree structures for tables and indexes. "
+        "A B-tree keeps keys organized so SQLite can locate values and traverse "
+        "them in order. This can support lookups and sorting, although the actual "
+        "access path depends on the query and schema.",
+    ),
+      
 ]
 
 
 def _local_followup(question: str, payload: dict) -> str:
     q = question.lower()
+
     for keywords, answer in _FOLLOWUP_PATTERNS:
         if any(kw in q for kw in keywords):
             return answer
 
-    # generic fallback using analysis context
-    rec = payload.get("rec", {})
-    recs = rec.get("recommendations", [])
+    # Generic fallback using analysis context
+    rec = payload.get("rec") or {}
+    recs = rec.get("recommendations") or []
+
     if recs:
         r = recs[0]
+
+        table = r.get("table", "unknown table")
+        columns = r.get("columns") or []
+        score = r.get("score")
+        confidence = r.get("confidence")
+
+        index_description = f"{table}({', '.join(columns)})"
+
+        if score is not None and confidence:
+            recommendation_details = (
+                f"with score {score} ({confidence} confidence)"
+            )
+        elif score is not None:
+            recommendation_details = f"with score {score}"
+        elif confidence:
+            recommendation_details = f"with {confidence} confidence"
+        else:
+            recommendation_details = "based on the detected query features"
+
         return (
-            f"Based on the current analysis: the engine recommended an index on "
-            f"{r['table']}({', '.join(r['columns'])}) with score {r['score']} "
-            f"({r['confidence']} confidence). "
+            f"Based on the current analysis, the engine recommended an index "
+            f"on {index_description}, {recommendation_details}. "
             f"If your question is about a specific aspect of this recommendation, "
-            f"try asking about: composite indexes, column order, score/confidence, "
+            f"try asking about composite indexes, column order, score/confidence, "
             f"trade-offs, or what EXPLAIN QUERY PLAN means."
         )
+
     return (
-        "No recommendation was generated for this query — existing indexes or "
-        "primary keys already cover the access patterns. Try asking about "
-        "trade-offs, score/confidence, or EXPLAIN QUERY PLAN."
+        "No recommendation was generated for this query. Existing indexes, "
+        "primary keys, or the available query evidence may mean that an "
+        "additional index is unnecessary. Try asking about trade-offs, "
+        "score/confidence, or EXPLAIN QUERY PLAN."
     )
+
 
 
 async def _openai_followup(question: str, payload: dict, api_key: str) -> str:

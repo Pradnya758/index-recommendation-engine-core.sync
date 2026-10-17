@@ -131,7 +131,7 @@ def failed_candidate_evidence(
         existing_indexes=(),
         primary_key=(),
         experiment_succeeded=False,
-        error=type(error).__name__,
+        error=f"{type(error).__name__}: {error}",
     )
 
 
@@ -224,22 +224,31 @@ def _has_temp_btree(plan: tuple[str, ...]) -> bool:
     )
 
 
+
 def _uses_columns(
     plan: tuple[str, ...],
     columns: tuple[str, ...],
 ) -> bool:
+    if not plan or not columns:
+        return False
+
     plan_text = " ".join(plan).casefold()
 
-    positions = [
-        plan_text.find(f"{column.casefold()}=")
-        for column in columns
-    ]
+    # SQLite's EXPLAIN QUERY PLAN usually shows indexed
+    # search constraints inside parentheses, for example:
+    # (status=? AND order_date>?)
+    positions = []
 
-    return (
-        all(position >= 0 for position in positions)
-        and positions == sorted(positions)
-    )
+    for column in columns:
+        marker = f"{column.casefold()}="
+        position = plan_text.find(marker)
 
+        if position < 0:
+            return False
 
-def _quote(identifier: str) -> str:
+        positions.append(position)
+
+    return positions == sorted(positions)
+
+def _quote(identifier: str) -> str: 
     return '"' + identifier.replace('"', '""') + '"'

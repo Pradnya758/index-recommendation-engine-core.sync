@@ -531,3 +531,106 @@ def test_drop_index_sql_is_correct(schema):
     assert rec.drop_index_sql == (
         'DROP INDEX IF EXISTS "idx_orders_status";'
     )
+    
+from app.services.recommendation_engine import _evidence_status
+from app.services.index_evidence import CandidateEvidence
+
+
+def test_evidence_status_supported():
+    evidence = CandidateEvidence(
+        table="orders",
+        columns=("customer_id",),
+        baseline_plan=["SCAN orders"],
+        candidate_plan=["SEARCH orders USING INDEX idx_orders_customer_id"],
+        table_row_count=100,
+        candidate_used=True,
+        plan_changed=True,
+        scan_replaced_by_search=True,
+        temp_btree_removed=False,
+        composite_prefix_used=False,
+        existing_indexes=(),
+        primary_key=(),
+        experiment_succeeded=True,
+        error=None,
+    )
+
+    assert _evidence_status(evidence) == "SUPPORTED"
+
+
+def test_evidence_status_unchanged():
+    evidence = CandidateEvidence(
+        table="orders",
+        columns=("customer_id",),
+        baseline_plan=["SCAN orders"],
+        candidate_plan=["SCAN orders"],
+        table_row_count=100,
+        candidate_used=False,
+        plan_changed=False,
+        scan_replaced_by_search=False,
+        temp_btree_removed=False,
+        composite_prefix_used=False,
+        existing_indexes=(),
+        primary_key=(),
+        experiment_succeeded=True,
+        error=None,
+    )
+
+    assert _evidence_status(evidence) == "UNCHANGED"
+
+
+def test_evidence_status_uncertain():
+    evidence = CandidateEvidence(
+        table="orders",
+        columns=("customer_id",),
+        baseline_plan=[],
+        candidate_plan=[],
+        table_row_count=0,
+        candidate_used=False,
+        plan_changed=False,
+        scan_replaced_by_search=False,
+        temp_btree_removed=False,
+        composite_prefix_used=False,
+        existing_indexes=(),
+        primary_key=(),
+        experiment_succeeded=False,
+        error="experiment failed",
+    )
+
+    assert _evidence_status(evidence) == "UNCERTAIN"
+
+def test_composite_rule_matching_requires_composite_candidate():
+    from app.services.recommendation_engine import _match_sqlite_rules
+
+    reasons = ["Equality columns followed by a range column"]
+
+    assert "R2" not in {
+        rule["rule_id"]
+        for rule in _match_sqlite_rules(reasons)
+    }
+
+
+def test_ordering_rule_does_not_automatically_trigger_r11():
+    from app.services.recommendation_engine import _match_sqlite_rules
+
+    reasons = ["The query contains an ORDER BY clause"]
+
+    assert "R11" not in {
+        rule["rule_id"]
+        for rule in _match_sqlite_rules(reasons)
+    }
+
+from app.services.recommendation_engine import _match_sqlite_rules
+
+
+def test_r6_does_not_match_leading_wildcard_without_evidence():
+    rules = _match_sqlite_rules(
+        ["Query uses LIKE '%phone'."]
+    )
+    assert "R6" not in {rule["rule_id"] for rule in rules}
+
+
+def test_r6_does_not_match_unrelated_word_containing_like():
+    rules = _match_sqlite_rules(
+        ["This candidate is likely to be useful."]
+    )
+    assert "R6" not in {rule["rule_id"] for rule in rules}

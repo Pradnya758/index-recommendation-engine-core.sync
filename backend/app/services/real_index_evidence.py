@@ -133,7 +133,7 @@ def failed_real_candidate_evidence(
         existing_indexes=(),
         primary_key=(),
         experiment_succeeded=False,
-        error=type(error).__name__,
+        error=f"{type(error).__name__}: {error}",
     )
 
 

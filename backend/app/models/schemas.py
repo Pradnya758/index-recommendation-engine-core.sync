@@ -70,6 +70,7 @@ class JoinCondition(BaseModel):
     right: ColumnReference
 
 
+
 class QueryFeatures(BaseModel):
     tables: list[str]
     where_conditions: list[WhereCondition]
@@ -78,6 +79,10 @@ class QueryFeatures(BaseModel):
     join_columns: list[ColumnReference]
     order_by_columns: list[ColumnReference]
     group_by_columns: list[ColumnReference]
+    like_patterns: list[str] = []
+    expression_columns: list[str] = []
+    collations: list[str] = []
+
 
 
 class RecommendationEvidence(BaseModel):
@@ -85,6 +90,7 @@ class RecommendationEvidence(BaseModel):
     table: str
     column: str
     detail: str
+
 
 
 class IndexRecommendation(BaseModel):
@@ -96,6 +102,8 @@ class IndexRecommendation(BaseModel):
     priority: str
     reasons: list[str]
     evidence: list[RecommendationEvidence]
+    rules: list[dict[str, str]] = []
+    evidence_status: str = "UNCERTAIN"
 
 
 class RejectedCandidate(BaseModel):

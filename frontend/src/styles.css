@@ -1053,6 +1053,11 @@ details[open] .tbl-summary { color: var(--accent3); }
 .flow-node b { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border2); border-radius: 50%; background: var(--surface2); font-family: var(--mono); font-size: 10px; font-weight: 600; transition: all var(--tr); }
 .flow-node.is-active { color: var(--accent2); }
 .flow-node.is-active b { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 14px var(--glow); }
+body.light .flow-node.is-active b {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
 .flow-node.is-complete { color: var(--text2); }
 .flow-node.is-complete b { background: rgba(16,185,129,.1); border-color: rgba(16,185,129,.3); color: var(--green); }
 .playback-controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
@@ -1907,17 +1912,30 @@ body.light .feature-icon-wrap.cyan-icon { background: rgba(8,145,178,.08); borde
 .algo-score-table {
   border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden;
 }
+
 .algo-score-hdr {
-  display: grid; grid-template-columns: 2fr 60px 3fr;
-  padding: 8px 14px; background: var(--surface2);
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: var(--text3); gap: 12px;
+  display: grid;
+  grid-template-columns: 110px 200px minmax(0, 1fr);
+  padding: 8px 14px;
+  background: var(--surface2);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text3);
+  column-gap: 20px;
 }
+
 .algo-score-row {
-  display: grid; grid-template-columns: 2fr 60px 3fr;
-  padding: 10px 14px; border-top: 1px solid var(--border);
-  gap: 12px; align-items: start; transition: background var(--tr);
+  display: grid;
+  grid-template-columns: 110px 200px minmax(0, 1fr);
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  column-gap: 20px;
+  align-items: start;
+  transition: background var(--tr);
 }
+
 .algo-score-row:hover { background: var(--surface2); }
 .algo-score-feature { font-size: 12px; color: var(--text); font-family: var(--mono); }
 .algo-score-pts {
@@ -5770,4 +5788,471 @@ body.light .ce-page .ce-progress-track {
     box-shadow 0.18s ease,
     transform 0.18s ease;
 }
+
+/* SQL Workspace */
+.sql-workspace {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  color: var(--text-primary, #17233f);
+}
+
+.sql-workspace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sql-workspace-header h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.sql-workspace-header p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.sql-workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.6fr);
+  gap: 24px;
+  align-items: start;
+}
+.sql-workspace-schema {
+  min-width: 0;
+}
+
+.workspace-schema-columns > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 8px 0;
+}
+
+.workspace-schema-columns > li > strong {
+  overflow-wrap: anywhere;
+}
+
+.workspace-schema-columns > li > span {
+  white-space: nowrap;
+}
+
+.workspace-schema-columns > li > small {
+  grid-column: 1 / -1;
+}
+.sql-workspace-schema,
+.sql-workspace-results,
+.sql-workspace-plan {
+  padding: 18px;
+  border: 1px solid #d9e2f0;
+  border-radius: 12px;
+  background: var(--panel-bg, #ffffff);
+  min-width: 0;
+}
+
+.sql-workspace-schema h2,
+.sql-workspace-results h2,
+.sql-workspace-plan h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.sql-workspace-schema details {
+  padding: 10px 0;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.sql-workspace-schema summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sql-workspace-schema ul {
+  list-style: none;
+  padding-left: 12px;
+  margin-bottom: 0;
+}
+
+.sql-workspace-schema li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sql-workspace-schema li span {
+  color: #64748b;
+}
+
+.sql-workspace-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sql-workspace-main > label {
+  font-weight: 700;
+}
+
+#workspace-sql-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 240px;
+  padding: 16px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #111827;
+  color: #e5eefb;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.sql-workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sql-workspace-actions button,
+.sql-workspace-header button {
+  padding: 10px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sql-workspace-actions button:first-child {
+  background: #245bd6;
+  color: white;
+  border-color: #245bd6;
+}
+
+.sql-workspace-actions button:disabled,
+.sql-workspace-header button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sql-workspace-error {
+  color: #b91c1c;
+  padding: 10px;
+  background: #fef2f2;
+  border-radius: 8px;
+}
+
+.sql-workspace-message {
+  color: #166534;
+}
+
+.sql-workspace-table-wrap {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.sql-workspace-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sql-workspace-table-wrap th,
+.sql-workspace-table-wrap td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sql-workspace-table-wrap th {
+  background: #f1f5f9;
+}
+
+.sql-workspace-plan pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .sql-workspace {
+    padding: 14px;
+  }
+
+  .sql-workspace-header {
+    flex-direction: column;
+  }
+
+  .sql-workspace-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+  
+/* SQL Workspace — readable schema spacing */
+.sql-workspace-schema {
+  min-width: 0;
+}
+
+.sql-workspace-schema details {
+  margin-top: 12px;
+}
+
+.sql-workspace-schema details > summary {
+  margin-bottom: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.sql-workspace-schema details > h3 {
+  margin: 14px 0 8px;
+  font-size: 16px;
+}
+
+.workspace-schema-columns,
+.workspace-schema-indexes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 0 8px;
+  min-width: 0;
+}
+
+.workspace-schema-columns > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 4px 0;
+  min-width: 0;
+}
+
+.workspace-schema-columns > li > strong,
+.workspace-schema-indexes > li > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workspace-schema-columns > li > span {
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.workspace-schema-columns > li > small {
+  grid-column: 1 / -1;
+  color: var(--text3);
+  overflow-wrap: anywhere;
+}
+
+.workspace-schema-indexes > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.workspace-schema-indexes > li > div,
+.workspace-schema-indexes > li > small {
+  color: var(--text2);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.workspace-schema-indexes > li > small {
+  color: var(--text3);
+}
+
+.sql-workspace-schema h3 + ul {
+  margin-bottom: 10px;
+}
+/* SQL Workspace schema spacing */
+.workspace-schema-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 10px 0 22px;
+}
+
+.workspace-schema-columns li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 14px;
+  row-gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace-schema-columns li strong {
+  overflow-wrap: anywhere;
+}
+
+.workspace-schema-columns li span {
+  color: var(--text2);
+}
+
+.workspace-schema-columns li small {
+  grid-column: 1 / -1;
+  color: var(--text3);
+}
+
+.workspace-schema-indexes {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 10px 0 22px;
+}
+
+.workspace-schema-indexes li {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface2);
+  overflow-wrap: anywhere;
+}
+
+.workspace-schema-indexes li small {
+  color: var(--text2);
+  line-height: 1.7;
+}
+/* Add breathing room inside recommendation cards */
+.recommendation-card > p {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.recommendation-card .recommendation-explanation {
+  padding-top: 10px;
+}
+.recommendation-explanation {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 12px 16px 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+/* Add spacing around recommendation evidence text */
+.rec-evidence-status {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 16px 14px;
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+/* SQL Workspace — dark mode consistency */
+body:not(.light) .sql-workspace-schema,
+body:not(.light) .sql-workspace-results,
+body:not(.light) .sql-workspace-plan {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+body:not(.light) .sql-workspace-schema details {
+  border-bottom-color: var(--border);
+}
+
+body:not(.light) .sql-workspace-schema li span,
+body:not(.light) .sql-workspace-schema li small,
+body:not(.light) .workspace-schema-indexes li > div,
+body:not(.light) .workspace-schema-indexes li > small {
+  color: var(--text2);
+}
+
+body:not(.light) .workspace-schema-indexes li {
+  background: var(--surface2);
+  border-color: var(--border);
+}
+
+body:not(.light) .sql-workspace-header button,
+body:not(.light) .sql-workspace-actions button:not(:first-child) {
+  background: var(--surface2);
+  color: var(--text);
+  border-color: var(--border2);
+}
+
+body:not(.light) .sql-workspace-actions button:first-child {
+  background: #245bd6;
+  color: #ffffff;
+  border-color: #245bd6;
+}
+
+body:not(.light) .sql-workspace-message {
+  color: #6ee7a0;
+}
+
+body:not(.light) .sql-workspace-error {
+  color: #fca5a5;
+  background: #3b1720;
+}
+
+body:not(.light) .sql-workspace-table-wrap {
+  border-color: var(--border);
+}
+
+body:not(.light) .sql-workspace-table-wrap th {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+body:not(.light) .sql-workspace-table-wrap td {
+  color: var(--text);
+  border-bottom-color: var(--border);
+}
+/* SQL Workspace heading contrast in dark mode */
+body:not(.light) .sql-workspace-header h1 {
+  color: var(--text);
+}
+
+body:not(.light) .sql-workspace-header p {
+  color: var(--text2);
+}
+/* SQL Workspace editor contrast in dark mode */
+body:not(.light) .sql-workspace-main > label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+body:not(.light) .sql-workspace-main textarea {
+  background: var(--bg1);
+  color: var(--text);
+  border: none;
+  caret-color: var(--text);
+  box-shadow: none;
+}
+
+body:not(.light) .sql-workspace-main textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+body:not(.light) .sql-workspace-main textarea::placeholder {
+  color: var(--text3);
+}
+
 

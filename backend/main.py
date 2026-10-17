@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.api.workspace import router as workspace_router
 from app.api.analysis import router as analysis_router
 from app.api.history import router as history_router
-from app.api.ai_tutor import router as ai_tutor_router
+from app.api.ai_tutor import router as ai_tutor_router  
 
 app = FastAPI(
     title="Index Recommendation Engine",
@@ -30,3 +30,4 @@ async def health():
 app.include_router(analysis_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(ai_tutor_router, prefix="/api")
+app.include_router(workspace_router, prefix="/api")

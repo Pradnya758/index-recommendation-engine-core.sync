@@ -9,10 +9,12 @@ class SqlAnalysisError(ValueError):
     """Raised when a valid SELECT cannot be mapped to the inspected schema."""
 
 
+
 def extract_query_features(query: str, schema_tables: dict[str, set[str]]) -> QueryFeatures:
-    """Extract index-relevant features from a validated SQLite SELECT using SQLGlot."""
+    """Extract index-relevant features from a SQLite SELECT using SQLGlot."""
     expression = parse_one(query, read="sqlite")
     aliases, tables = _table_aliases(expression, schema_tables)
+
     where_conditions: list[WhereCondition] = []
     equality_filters: list[ColumnReference] = []
     range_filters: list[ColumnReference] = []
@@ -20,42 +22,97 @@ def extract_query_features(query: str, schema_tables: dict[str, set[str]]) -> Qu
     order_by_columns: list[ColumnReference] = []
     group_by_columns: list[ColumnReference] = []
 
+    like_patterns: list[str] = []
+    expression_columns: list[str] = []
+    collations: list[str] = []
+
+    # Existing WHERE-condition extraction.
     where = expression.args.get("where")
     if where:
         for condition in _split_and(where.this):
             condition_data = _where_condition(condition, aliases, schema_tables)
             if condition_data is None:
                 continue
+
             column, operator, kind = condition_data
-            where_conditions.append(WhereCondition(table=column.table, column=column.column, operator=operator, kind=kind))
+            where_conditions.append(
+                WhereCondition(
+                    table=column.table,
+                    column=column.column,
+                    operator=operator,
+                    kind=kind,
+                )
+            )
+
             if kind == "equality":
                 _append_unique(equality_filters, column)
             else:
                 _append_unique(range_filters, column)
 
+    # Extract LIKE patterns from the parsed SQL expression.
+    for like_expression in expression.find_all(exp.Like):
+        pattern_expression = like_expression.args.get("expression")
+        if pattern_expression is not None:
+            pattern = getattr(pattern_expression, "this", None)
+            if isinstance(pattern, str) and pattern not in like_patterns:
+                like_patterns.append(pattern)
+
+    # Record function-wrapped columns, e.g. LOWER(name).
+    for function in expression.find_all(exp.Func):
+        for column_expression in function.find_all(exp.Column):
+            column = _resolve_column(column_expression, aliases, schema_tables)
+            if column is not None:
+                label = f"{column.table}.{column.column}"
+                if label not in expression_columns:
+                    expression_columns.append(label)
+
+    # Record explicit COLLATE expressions.
+    for collate_expression in expression.find_all(exp.Collate):
+        collation_expression = collate_expression.args.get("expression")
+        collation_name = collate_expression.args.get("collation")
+
+        if collation_name is not None:
+            name = getattr(collation_name, "name", None)
+            if not name:
+                name = getattr(collation_name, "this", None)
+            if name is not None:
+                name = str(name)
+                if name not in collations:
+                    collations.append(name)
+
+    # Existing JOIN extraction.
     for join in expression.find_all(exp.Join):
         on_clause = join.args.get("on")
         if not on_clause:
             continue
+
         for equality in on_clause.find_all(exp.EQ):
             left = _resolve_column(equality.left, aliases, schema_tables)
             right = _resolve_column(equality.right, aliases, schema_tables)
+
             if left is None or right is None:
                 continue
+
             _append_unique(join_columns, left)
             _append_unique(join_columns, right)
 
+    # Existing ORDER BY extraction.
     order = expression.args.get("order")
     if order:
         for ordered_expression in order.expressions:
-            column = _resolve_column(ordered_expression.this, aliases, schema_tables)
+            column = _resolve_column(
+                ordered_expression.this, aliases, schema_tables
+            )
             if column:
                 _append_unique(order_by_columns, column)
 
+    # Existing GROUP BY extraction.
     group = expression.args.get("group")
     if group:
         for group_expression in group.expressions:
-            column = _resolve_column(group_expression, aliases, schema_tables)
+            column = _resolve_column(
+                group_expression, aliases, schema_tables
+            )
             if column:
                 _append_unique(group_by_columns, column)
 
@@ -67,8 +124,10 @@ def extract_query_features(query: str, schema_tables: dict[str, set[str]]) -> Qu
         join_columns=join_columns,
         order_by_columns=order_by_columns,
         group_by_columns=group_by_columns,
+        like_patterns=like_patterns,
+        expression_columns=expression_columns,
+        collations=collations,
     )
-
 
 def _table_aliases(expression: exp.Expression, schema_tables: dict[str, set[str]]) -> tuple[dict[str, str], list[str]]:
     aliases: dict[str, str] = {}
