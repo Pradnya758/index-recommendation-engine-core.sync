@@ -1,161 +1,272 @@
+
 import { useState } from "react";
 
-/* ── helpers ─────────────────────────────────────────────────── */
+/* ---------- Safe formatting helpers ---------- */
 
-function esc(str) {
-  return String(str ?? "")
+function esc(value) {
+  return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function colRef(arr) {
-  return arr.length ? arr.map((c) => `${esc(c.table)}.${esc(c.column)}`).join(", ") : "—";
+function list(value) {
+  return Array.isArray(value) ? value : [];
 }
 
-function fmtTs(d) {
-  return d.toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: true,
-  }).replace(",", " ·");
+function display(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
-/* ── HTML report builder ─────────────────────────────────────── */
+function formatTime(date) {
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
 
-function buildHtmlReport(query, result, plan, schema, ts) {
-  const { analysis, recommendations, rejected_candidates } = result;
+function statusLabel(status) {
+  switch (status) {
+    case "SUPPORTED":
+      return "Supported by query-plan evidence";
+    case "UNCHANGED":
+      return "No relevant query-plan change";
+    default:
+      return "Uncertain evidence";
+  }
+}
 
-  /* relevant existing indexes — tables referenced in this query */
-  const queryTables = new Set(analysis.tables);
-  const relevantIndexRows = (schema?.tables ?? [])
-    .filter((t) => queryTables.has(t.name))
-    .flatMap((t) => [
-      ...t.primary_keys.length
-        ? [`<tr><td>${esc(t.name)}</td><td><em>PRIMARY KEY</em></td><td>${t.primary_keys.map(esc).join(", ")}</td><td>—</td></tr>`]
-        : [],
-      ...t.indexes.map(
-        (idx) =>
-          `<tr><td>${esc(t.name)}</td><td>${esc(idx.name)}</td><td>${idx.columns.map(esc).join(", ")}</td><td>${idx.unique ? "UNIQUE" : "—"}</td></tr>`
-      ),
-    ])
-    .join("");
+function statusClass(status) {
+  switch (status) {
+    case "SUPPORTED":
+      return "supported";
+    case "UNCHANGED":
+      return "unchanged";
+    default:
+      return "uncertain";
+  }
+}
 
-  /* recommendations section */
-  const recSection = recommendations.length
-    ? recommendations.map((r) => `
-        <div class="rec-card">
-          <div class="rec-card-hdr">
-            <div class="rec-card-name">${esc(r.table)} <span class="rec-cols">(${r.columns.map(esc).join(", ")})</span></div>
-            <div class="rec-badges">
-              <span class="badge conf-${esc(r.confidence)}">${esc(r.confidence).toUpperCase()}</span>
-              <span class="badge score-badge">Score ${r.score}</span>
-            </div>
-          </div>
-          <table class="kv-table">
-            <tr><th>CREATE INDEX</th><td><code>${esc(r.create_index_sql)}</code></td></tr>
-            <tr><th>DROP INDEX (rollback)</th><td><code class="drop-code">${esc(r.drop_index_sql)}</code></td></tr>
-          </table>
-          <div class="rec-reasons-title">Why this index helps</div>
-          <ul class="reason-list">${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-          <div class="rec-reasons-title" style="margin-top:10px">Query evidence</div>
-          <ul class="reason-list">${r.evidence.map((e) => `<li>${esc(e.detail)}</li>`).join("")}</ul>
-        </div>`).join("")
-    : `<p class="no-rec">No new index recommended — the relevant access path is already covered by a primary key or existing index.</p>`;
+function renderTable(headers, rows) {
+  if (!rows.length) {
+    return `<p class="muted">No data available for this section.</p>`;
+  }
 
-  /* rejected candidates */
-  const rejectedSection = rejected_candidates.length
-    ? `<table><tr><th>Table</th><th>Columns</th><th>Reason</th></tr>${
-        rejected_candidates.map(
-          (r) => `<tr><td>${esc(r.table)}</td><td>${r.columns.map(esc).join(", ")}</td><td>${esc(r.reason)}</td></tr>`
-        ).join("")
-      }</table>`
-    : `<p class="muted">No candidates were rejected.</p>`;
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>${headers.map((h) => `<th>${esc(h)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              (row) =>
+                `<tr>${row
+                  .map((cell) => `<td>${esc(display(cell))}</td>`)
+                  .join("")}</tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
 
-  /* query plan */
-  const planRows = (plan?.plan ?? []).map(
-    (s) => `<tr><td class="plan-id">${s.id}</td><td>${esc(s.detail)}</td></tr>`
-  ).join("");
+function renderEvidence(evidence) {
+  const items = list(evidence);
 
-  /* step-by-step */
-  const steps = [
-    {
-      n: 1, title: "SQL Input",
-      body: `<pre class="code-block">${esc(query)}</pre>`,
-    },
-    {
-      n: 2, title: "Query Parsing",
-      body: `<p>SQLGlot parsed the query and identified the following tables:</p>
-             <p class="tag-row">${analysis.tables.length ? analysis.tables.map((t) => `<span class="tag">${esc(t)}</span>`).join(" ") : "<em>None</em>"}</p>`,
-    },
-    {
-      n: 3, title: "Feature Extraction",
-      body: `<table>
-               <tr><th>Clause</th><th>Columns detected</th></tr>
-               <tr><td>WHERE equality</td><td>${colRef(analysis.equality_filters)}</td></tr>
-               <tr><td>WHERE range</td><td>${colRef(analysis.range_filters)}</td></tr>
-               <tr><td>JOIN</td><td>${colRef(analysis.join_columns)}</td></tr>
-               <tr><td>ORDER BY</td><td>${colRef(analysis.order_by_columns)}</td></tr>
-               <tr><td>GROUP BY</td><td>${colRef(analysis.group_by_columns)}</td></tr>
-             </table>`,
-    },
-    {
-      n: 4, title: "Existing Index Check",
-      body: rejected_candidates.length
-        ? `<p>The following candidates were rejected because they duplicate existing coverage:</p>${rejectedSection}`
-        : `<p class="muted">No candidates were rejected — all are new and non-duplicate.</p>`,
-    },
-    {
-      n: 5, title: "Candidate Generation",
-      body: recommendations.length
-        ? `<ul class="reason-list">${recommendations.flatMap((r) => r.evidence).map((e) => `<li><strong>${esc(e.table)}.${esc(e.column)}</strong> — ${esc(e.detail)}</li>`).join("")}</ul>`
-        : `<p class="muted">No new candidates generated.</p>`,
-    },
-    {
-      n: 6, title: "Candidate Ranking",
-      body: `<p>Scoring weights used by the rule-based engine:</p>
-             <table>
-               <tr><th>Evidence type</th><th>Points</th></tr>
-               <tr><td>Equality filter</td><td>+45</td></tr>
-               <tr><td>Join column</td><td>+35</td></tr>
-               <tr><td>Range filter</td><td>+25</td></tr>
-               <tr><td>ORDER BY / GROUP BY</td><td>+15</td></tr>
-               <tr><td>Composite predicate</td><td>+65</td></tr>
-             </table>
-             ${recommendations.length
-               ? `<p style="margin-top:10px">Ranked results:</p>
-                  <table>
-                    <tr><th>Candidate</th><th>Score</th><th>Confidence</th></tr>
-                    ${recommendations.map((r) => `<tr><td>${esc(r.table)}(${r.columns.map(esc).join(", ")})</td><td>${r.score}</td><td>${esc(r.confidence)}</td></tr>`).join("")}
-                  </table>`
-               : ""}`,
-    },
-    {
-      n: 7, title: "Final Recommendation",
-      body: recommendations.length
-        ? recommendations.map((r) => `<p><strong>${esc(r.table)}(${r.columns.map(esc).join(", ")})</strong> — ${esc(r.confidence)} confidence, score ${r.score}</p><pre class="code-block">${esc(r.create_index_sql)}</pre>`).join("")
-        : `<p class="muted">No recommendation — existing indexes already cover this query.</p>`,
-    },
-    {
-      n: 8, title: "Visualization",
-      body: `<p>The application provides four interactive educational diagrams:</p>
-             <ul class="reason-list">
-               <li><strong>Execution Flow</strong> — the query processing pipeline from parse to execute, showing where the index intercepts the scan.</li>
-               <li><strong>Table Scan Simulation</strong> — compares full-scan row traversal against index-lookup row counts for the recommended index.</li>
-               <li><strong>B+ Tree Traversal</strong> — illustrates how the index stores column values in sorted order for O(log n) lookup.</li>
-               <li><strong>Plan Comparison</strong> — shows the actual EXPLAIN QUERY PLAN output; the proposed indexed path is labelled conceptual.</li>
-             </ul>`,
-    },
-  ];
+  if (!items.length) {
+    return `<p class="muted">No query-plan evidence was provided for this candidate.</p>`;
+  }
 
-  const stepsHtml = steps.map((s) => `
-    <div class="step-row">
-      <div class="step-num">Step ${s.n}</div>
-      <div class="step-content">
-        <div class="step-title">${s.title}</div>
-        <div class="step-body">${s.body}</div>
+  return `<ul>${items
+    .map((item) => {
+      if (typeof item === "string") return `<li>${esc(item)}</li>`;
+
+      const title = [item.feature, item.table, item.column]
+        .filter(Boolean)
+        .join(" · ");
+
+      return `<li>
+        ${title ? `<strong>${esc(title)}</strong> — ` : ""}
+        ${esc(item.detail ?? item.description ?? JSON.stringify(item))}
+      </li>`;
+    })
+    .join("")}</ul>`;
+}
+
+function renderRules(rules) {
+  const items = list(rules);
+
+  if (!items.length) {
+    return `<p class="muted">No specific SQLite rule references were provided.</p>`;
+  }
+
+  return `<ul>${items
+    .map((rule) => {
+      if (typeof rule === "string") return `<li>${esc(rule)}</li>`;
+
+      const title = [rule.rule_id, rule.title].filter(Boolean).join(" — ");
+
+      return `<li>
+        <strong>${esc(title || "SQLite rule")}</strong>
+        ${rule.description ? `<div>${esc(rule.description)}</div>` : ""}
+        ${
+          rule.source_url
+            ? `<div><a href="${esc(rule.source_url)}">${esc(
+                "View documentation"
+              )}</a></div>`
+            : ""
+        }
+      </li>`;
+    })
+    .join("")}</ul>`;
+}
+
+function renderCandidate(candidate, index) {
+  const table = candidate.table ?? "Unknown table";
+  const columns = list(candidate.columns);
+  const status = candidate.evidence_status ?? "UNCERTAIN";
+
+  return `
+    <article class="candidate">
+      <div class="candidate-header">
+        <div>
+          <h3>${esc(table)} (${esc(columns.join(", ") || "—")})</h3>
+          <p class="muted">Candidate ${index + 1}</p>
+        </div>
+        <span class="status ${statusClass(status)}">
+          ${esc(statusLabel(status))}
+        </span>
       </div>
-    </div>`).join("");
+
+      <h4>Create index</h4>
+      <pre>${esc(candidate.create_index_sql)}</pre>
+
+      <h4>Rollback SQL</h4>
+      <pre>${esc(candidate.drop_index_sql)}</pre>
+
+      <h4>Why this candidate was evaluated</h4>
+      ${
+        list(candidate.reasons).length
+          ? `<ul>${list(candidate.reasons)
+              .map((reason) => `<li>${esc(reason)}</li>`)
+              .join("")}</ul>`
+          : `<p class="muted">No additional explanation was provided.</p>`
+      }
+
+      <h4>Query-plan evidence</h4>
+      ${renderEvidence(candidate.evidence)}
+
+      <h4>Applicable SQLite rules</h4>
+      ${renderRules(candidate.rules)}
+    </article>`;
+}
+
+/* ---------- Report builder ---------- */
+
+function buildHtmlReport(query, result, plan, schema, timestamp) {
+  const analysis = result?.analysis ?? {};
+  const recommendations = list(result?.recommendations);
+  const rejected = list(result?.rejected_candidates);
+
+  const recommended = recommendations.filter(
+    (candidate) => candidate.recommendation === "recommended"
+  );
+
+  const notRecommended = recommendations.filter(
+    (candidate) => candidate.recommendation === "not_recommended"
+  );
+
+  // Support either a schema object with a tables property or a tables array.
+  const tables = Array.isArray(schema) ? schema : list(schema?.tables);
+  const queryTables = new Set(list(analysis.tables));
+
+  const existingIndexes = tables
+    .filter((table) => queryTables.has(table.name))
+    .flatMap((table) => [
+      ...list(table.primary_keys).map((column) => [
+        table.name,
+        "PRIMARY KEY",
+        column,
+        "—",
+      ]),
+      ...list(table.indexes).map((index) => [
+        table.name,
+        index.name,
+        list(index.columns).join(", "),
+        index.unique ? "UNIQUE" : "Non-unique",
+      ]),
+    ]);
+
+  const featureRows = [
+    ["WHERE equality", analysis.equality_filters],
+    ["WHERE range", analysis.range_filters],
+    ["JOIN", analysis.join_columns],
+    ["ORDER BY", analysis.order_by_columns],
+    ["GROUP BY", analysis.group_by_columns],
+  ].map(([name, items]) => [
+    name,
+    list(items)
+      .map((item) =>
+        typeof item === "string"
+          ? item
+          : [item.table, item.column].filter(Boolean).join(".")
+      )
+      .join(", ") || "—",
+  ]);
+
+  // Query-plan responses may expose their rows under plan or another
+  // common property. Keep the complete original response in JSON export.
+  const planRows = Array.isArray(plan)
+    ? plan
+    : list(plan?.plan ?? plan?.query_plan ?? plan?.rows);
+
+  const planHtml = planRows.length
+    ? renderTable(
+        ["ID", "Parent", "Detail"],
+        planRows.map((row) => [
+          row.id ?? row.selectid ?? "—",
+          row.parent ?? row.parent_id ?? "—",
+          row.detail ?? row.description ?? JSON.stringify(row),
+        ])
+      )
+    : `<pre>${esc(
+        plan ? JSON.stringify(plan, null, 2) : "No query plan available."
+      )}</pre>`;
+
+  const recommendationsHtml = recommended.length
+    ? recommended.map(renderCandidate).join("")
+    : `<p class="muted">No candidates are currently classified as recommended.</p>`;
+
+  const notRecommendedHtml = notRecommended.length
+    ? notRecommended.map(renderCandidate).join("")
+    : `<p class="muted">No tested-but-not-recommended candidates were returned.</p>`;
+
+  const rejectedHtml = rejected.length
+    ? renderTable(
+        ["Table", "Columns", "Reason"],
+        rejected.map((item) => [
+          item.table,
+          list(item.columns).join(", "),
+          item.reason,
+        ])
+      )
+    : `<p class="muted">No existing-index rejections were returned.</p>`;
+
+  const otherRecommendations = recommendations.filter(
+    (candidate) =>
+      candidate.recommendation !== "recommended" &&
+      candidate.recommendation !== "not_recommended"
+  );
+
+  const otherHtml = otherRecommendations.length
+    ? otherRecommendations.map(renderCandidate).join("")
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -164,256 +275,237 @@ function buildHtmlReport(query, result, plan, schema, ts) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Index Recommendation Report</title>
 <style>
-/* ── Reset & base ── */
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Segoe UI",system-ui,sans-serif;font-size:13px;line-height:1.6;color:#1e293b;background:#fff}
-
-/* ── Page layout ── */
-.page{max-width:820px;margin:0 auto;padding:48px 40px 64px}
-
-/* ── Cover header ── */
-.cover{border-bottom:3px solid #1e3a8a;padding-bottom:20px;margin-bottom:32px}
-.cover-title{font-size:26px;font-weight:800;color:#1e3a8a;letter-spacing:-.02em;margin-bottom:4px}
-.cover-sub{font-size:13px;color:#64748b;margin-bottom:12px}
-.cover-meta{display:flex;gap:24px;flex-wrap:wrap;font-size:11px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px;margin-top:10px}
-.cover-meta span{display:flex;align-items:center;gap:5px}
-.cover-meta strong{color:#334155}
-
-/* ── Section headings ── */
-.section{margin-bottom:28px}
-h2{font-size:13px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.07em;padding:6px 0 6px 10px;border-left:4px solid #2563eb;margin-bottom:12px}
-
-/* ── Code blocks ── */
-.code-block{font-family:"Cascadia Code","Fira Code","Courier New",monospace;font-size:12px;background:#f0f4ff;border:1px solid #c7d7f5;border-radius:5px;padding:10px 14px;white-space:pre-wrap;word-break:break-all;color:#1d4ed8;margin:6px 0}
-.drop-code{color:#dc2626}
-
-/* ── Tables ── */
-table{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0}
-th,td{text-align:left;padding:7px 10px;border:1px solid #e2e8f0;vertical-align:top}
-th{background:#f1f5f9;font-weight:600;color:#334155;white-space:nowrap}
-tr:nth-child(even) td{background:#fafbfc}
-.plan-id{font-family:monospace;color:#64748b;width:40px}
-.kv-table th{width:200px}
-.kv-table td code{font-family:"Cascadia Code","Fira Code","Courier New",monospace;font-size:11px;word-break:break-all}
-
-/* ── Recommendation card ── */
-.rec-card{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px}
-.rec-card-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-wrap:wrap;gap:8px}
-.rec-card-name{font-size:14px;font-weight:700;color:#1e3a8a;font-family:monospace}
-.rec-cols{font-weight:400;color:#475569}
-.rec-badges{display:flex;gap:6px;align-items:center}
-.badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em}
-.conf-high{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
-.conf-medium{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
-.conf-low{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
-.score-badge{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
-.rec-reasons-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:10px 14px 4px}
-.reason-list{padding:0 14px 10px 30px}
-.reason-list li{margin-bottom:3px;color:#334155}
-.no-rec{color:#059669;font-weight:600;padding:10px 0}
-.muted{color:#94a3b8;font-style:italic}
-
-/* ── Tags ── */
-.tag-row{margin-top:6px}
-.tag{display:inline-block;background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;border-radius:4px;padding:2px 8px;font-size:11px;font-family:monospace;margin:2px 3px 2px 0}
-
-/* ── Step-by-step ── */
-.step-row{display:flex;gap:16px;padding:12px 0;border-bottom:1px solid #f1f5f9}
-.step-row:last-child{border-bottom:none}
-.step-num{font-size:10px;font-weight:700;color:#2563eb;min-width:48px;padding-top:3px;font-family:monospace;letter-spacing:.03em}
-.step-content{flex:1}
-.step-title{font-size:12px;font-weight:700;color:#1e293b;margin-bottom:6px}
-.step-body{font-size:12px;color:#475569}
-.step-body p{margin-bottom:6px}
-.step-body table{margin-top:4px}
-
-/* ── Notice ── */
-.notice{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 14px;font-size:11px;color:#92400e;margin-bottom:24px}
-
-/* ── Print toolbar (screen only) ── */
-.print-toolbar{display:flex;gap:10px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #e2e8f0}
-.print-btn{padding:8px 18px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer}
-.print-btn:hover{background:#1d4ed8}
-.print-btn-sec{background:#fff;color:#2563eb}
-.print-btn-sec:hover{background:#eff6ff}
-
-/* ── Print ── */
+*{box-sizing:border-box}
+body{margin:0;background:#f4f7fb;color:#1e293b;font:14px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+.page{max-width:960px;margin:24px auto;background:#fff;padding:36px}
+.toolbar{display:flex;gap:10px;margin-bottom:28px}
+button{padding:10px 16px;border:1px solid #2563eb;border-radius:7px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer}
+.secondary{background:#fff;color:#1d4ed8}
+.cover{border-bottom:3px solid #1d4ed8;padding-bottom:20px;margin-bottom:24px}
+h1{margin:0 0 6px;color:#1e3a8a;font-size:28px}
+h2{font-size:17px;color:#1e3a8a;border-bottom:1px solid #dbeafe;padding-bottom:8px;margin-top:30px}
+h3{font-size:15px;margin:0 0 6px;overflow-wrap:anywhere}
+h4{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#475569;margin:16px 0 5px}
+.meta{display:flex;gap:18px;flex-wrap:wrap;color:#64748b;font-size:12px;margin-top:14px}
+.notice{background:#eff6ff;border-left:4px solid #3b82f6;padding:12px;margin:18px 0}
+.muted{color:#64748b;font-size:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;border:1px solid #e2e8f0;padding:12px;border-radius:6px;font-size:12px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+th,td{padding:9px;border:1px solid #dbe3ee;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+th{background:#eff6ff}
+.candidate{border:1px solid #dbe3ee;border-radius:8px;padding:16px;margin:14px 0;break-inside:avoid}
+.candidate-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.status{display:inline-block;padding:5px 9px;border-radius:5px;font-size:11px;font-weight:700}
+.supported{background:#dcfce7;color:#166534}
+.unchanged{background:#fef3c7;color:#92400e}
+.uncertain{background:#e2e8f0;color:#334155}
+li{margin:5px 0;overflow-wrap:anywhere}
+section{break-inside:auto}
+a{color:#1d4ed8}
+@media(max-width:650px){.page{margin:0;padding:20px}h1{font-size:23px}}
 @media print{
-  .print-toolbar{display:none}
-  .page{padding:20px 24px 32px}
-  .cover{padding-bottom:14px;margin-bottom:20px}
-  h2{page-break-after:avoid}
-  .rec-card{page-break-inside:avoid}
-  .step-row{page-break-inside:avoid}
-  @page{size:A4;margin:18mm 16mm}
+body{background:#fff;font-size:11px}
+.page{max-width:none;margin:0;padding:0}
+.toolbar{display:none}
+h2{break-after:avoid}
+.candidate{break-inside:avoid}
 }
 </style>
 </head>
 <body>
 <div class="page">
-
-  <!-- Print toolbar (hidden when printing) -->
-  <div class="print-toolbar">
-    <button class="print-btn" onclick="window.print()">🖨 Print / Save as PDF</button>
-    <button class="print-btn print-btn-sec" onclick="window.close()">✕ Close</button>
+  <div class="toolbar">
+    <button onclick="window.print()">Print / Save as PDF</button>
+    <button class="secondary" onclick="window.close()">Close</button>
   </div>
 
-  <!-- Cover -->
-  <div class="cover">
-    <div class="cover-title">Index Recommendation Report</div>
-    <div class="cover-sub">Index Recommendation Engine · Rule-based · Deterministic · No AI</div>
-    <div class="cover-meta">
-      <span><strong>Generated:</strong> ${esc(ts)}</span>
-      <span><strong>Tables:</strong> ${analysis.tables.length ? analysis.tables.map(esc).join(", ") : "—"}</span>
-      <span><strong>Recommendations:</strong> ${recommendations.length}</span>
-      <span><strong>Engine:</strong> SQLite / SQLGlot</span>
+  <header class="cover">
+    <h1>Index Recommendation Report</h1>
+    <p>Evidence-based SQLite index analysis</p>
+    <div class="meta">
+      <span><strong>Generated:</strong> ${esc(timestamp)}</span>
+      <span><strong>Tables:</strong> ${esc(list(analysis.tables).join(", ") || "—")}</span>
+      <span><strong>Recommended:</strong> ${recommended.length}</span>
+      <span><strong>Tested, not recommended:</strong> ${notRecommended.length}</span>
     </div>
-  </div>
+  </header>
 
-  <!-- Notice -->
   <div class="notice">
-    ℹ Plan and recommendation evidence are based on the current analysis. The proposed indexed query plan is labelled conceptual — sandbox benchmarking is not implemented.
+    Recommendations and evidence are reported as returned by the current analysis.
+    Query-plan evidence does not by itself guarantee faster execution.
+    No legacy score or confidence value is invented by this report.
   </div>
 
-  <!-- 1. SQL Query -->
-  <div class="section">
-    <h2>1 · SQL Query</h2>
-    <pre class="code-block">${esc(query)}</pre>
-  </div>
+  <section>
+    <h2>1. SQL Query</h2>
+    <pre>${esc(query)}</pre>
+  </section>
 
-  <!-- 2. Detected Features -->
-  <div class="section">
-    <h2>2 · Detected Query Features</h2>
-    <table>
-      <tr><th>Clause</th><th>Columns</th></tr>
-      <tr><td>WHERE equality</td><td>${colRef(analysis.equality_filters)}</td></tr>
-      <tr><td>WHERE range</td><td>${colRef(analysis.range_filters)}</td></tr>
-      <tr><td>JOIN</td><td>${colRef(analysis.join_columns)}</td></tr>
-      <tr><td>ORDER BY</td><td>${colRef(analysis.order_by_columns)}</td></tr>
-      <tr><td>GROUP BY</td><td>${colRef(analysis.group_by_columns)}</td></tr>
-    </table>
-  </div>
+  <section>
+    <h2>2. Detected Query Features</h2>
+    ${renderTable(["Clause", "Detected columns"], featureRows)}
+  </section>
 
-  <!-- 3. Existing Indexes -->
-  <div class="section">
-    <h2>3 · Relevant Existing Indexes</h2>
-    ${relevantIndexRows
-      ? `<table><tr><th>Table</th><th>Index name</th><th>Columns</th><th>Unique</th></tr>${relevantIndexRows}</table>`
-      : `<p class="muted">No existing indexes found for the referenced tables.</p>`}
-  </div>
+  <section>
+    <h2>3. Existing Indexes</h2>
+    ${renderTable(
+      ["Table", "Index name", "Columns", "Type"],
+      existingIndexes
+    )}
+  </section>
 
-  <!-- 4. Recommendations -->
-  <div class="section">
-    <h2>4 · Index Recommendations</h2>
-    ${recSection}
-  </div>
+  <section>
+    <h2>4. Recommended Indexes</h2>
+    ${recommendationsHtml}
+  </section>
 
-  <!-- 5. Rejected Candidates -->
-  <div class="section">
-    <h2>5 · Rejected Candidates</h2>
-    ${rejectedSection}
-  </div>
+  <section>
+    <h2>5. Tested but Not Recommended</h2>
+    ${notRecommendedHtml}
+  </section>
 
-  <!-- 6. Query Plan -->
-  <div class="section">
-    <h2>6 · Query Plan (EXPLAIN QUERY PLAN)</h2>
-    ${planRows
-      ? `<table><tr><th>ID</th><th>Detail</th></tr>${planRows}</table>`
-      : `<p class="muted">No query plan available.</p>`}
-  </div>
+  ${
+    otherHtml
+      ? `<section><h2>6. Other Candidate Results</h2>${otherHtml}</section>`
+      : ""
+  }
 
-  <!-- 7. Step-by-Step Analysis -->
-  <div class="section">
-    <h2>7 · Step-by-Step Analysis</h2>
-    ${stepsHtml}
-  </div>
+  <section>
+    <h2>7. Existing-Index Rejections</h2>
+    ${rejectedHtml}
+  </section>
 
-  <!-- 8. Visualization Summary -->
-  <div class="section">
-    <h2>8 · Visualization Summary</h2>
-    <p>The application provides four interactive educational diagrams accessible from the Visualize page:</p>
-    <table style="margin-top:10px">
-      <tr><th>Diagram</th><th>Description</th></tr>
-      <tr><td><strong>Execution Flow</strong></td><td>Query processing pipeline — parse → plan → execute — showing where the index intercepts the scan.</td></tr>
-      <tr><td><strong>Table Scan Simulation</strong></td><td>Compares full-scan row traversal against index-lookup row counts for the recommended index.</td></tr>
-      <tr><td><strong>B+ Tree Traversal</strong></td><td>Illustrates how the index stores column values in sorted order for O(log n) lookup. Educational model, not exact SQLite internals.</td></tr>
-      <tr><td><strong>Plan Comparison</strong></td><td>Shows actual EXPLAIN QUERY PLAN output. The proposed indexed path is labelled conceptual.</td></tr>
-    </table>
-  </div>
+  <section>
+    <h2>8. Query Plan</h2>
+    ${planHtml}
+  </section>
 
+  <section>
+    <h2>9. Analysis Summary</h2>
+    <p>Analysis data is taken from the current result supplied by the application.</p>
+    <p><strong>Tables:</strong> ${esc(list(analysis.tables).join(", ") || "—")}</p>
+    <p><strong>Total candidates:</strong> ${recommendations.length}</p>
+    <p><strong>Recommended candidates:</strong> ${recommended.length}</p>
+    <p><strong>Tested but not recommended:</strong> ${notRecommended.length}</p>
+    <p><strong>Rejected due to existing coverage:</strong> ${rejected.length}</p>
+  </section>
 </div>
 </body>
 </html>`;
 }
 
-/* ── component ───────────────────────────────────────────────── */
+/* ---------- Export component ---------- */
 
 export default function ExportButton({ query, result, plan, schema }) {
   const [feedback, setFeedback] = useState("");
 
   if (!result) return null;
 
-  function flash(msg) {
-    setFeedback(msg);
-    setTimeout(() => setFeedback(""), 2600);
+  function flash(message) {
+    setFeedback(message);
+    window.setTimeout(() => setFeedback(""), 2600);
+  }
+
+  function createReportBlob() {
+    const html = buildHtmlReport(
+      query,
+      result,
+      plan,
+      schema,
+      formatTime(new Date())
+    );
+
+    return new Blob([html], { type: "text/html;charset=utf-8" });
   }
 
   function openReport() {
-    const ts  = fmtTs(new Date());
-    const html = buildHtmlReport(query, result, plan, schema, ts);
-    const blob = new Blob([html], { type: "text/html" });
-    const url  = URL.createObjectURL(blob);
-    // open in new tab so the user can print/save-as-PDF from there
-    window.open(url, "_blank", "noopener");
-    // revoke after a generous delay to ensure the tab has loaded
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    flash("Report opened ✓");
+    const url = URL.createObjectURL(createReportBlob());
+    const reportWindow = window.open(url, "_blank");
+
+    if (!reportWindow) {
+      URL.revokeObjectURL(url);
+      flash("Allow pop-ups to open the printable report.");
+      return;
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    flash("Current analysis report opened.");
   }
 
   function downloadHtml() {
-    const ts  = fmtTs(new Date());
-    const html = buildHtmlReport(query, result, plan, schema, ts);
-    const blob = new Blob([html], { type: "text/html" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `index-report-${Date.now()}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    flash("Report downloaded ✓");
+    const url = URL.createObjectURL(createReportBlob());
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `index-report-${Date.now()}.html`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    flash("Current analysis report downloaded.");
   }
 
   function downloadJson() {
     const payload = {
-      generated:           new Date().toISOString(),
+      generated: new Date().toISOString(),
       query,
-      analysis:            result.analysis,
-      recommendations:     result.recommendations,
-      rejected_candidates: result.rejected_candidates,
-      query_plan:          plan?.plan ?? [],
+      analysis: result.analysis ?? {},
+      recommendations: list(result.recommendations),
+      rejected_candidates: list(result.rejected_candidates),
+      query_plan: plan ?? null,
+      schema: schema ?? null,
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `index-report-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    flash("JSON exported ✓");
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `index-report-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    flash("Current analysis JSON exported.");
   }
 
   return (
     <div className="export-row">
-      <button className="export-btn export-btn-print" type="button" onClick={openReport}>
+      <button
+        className="export-btn export-btn-print"
+        type="button"
+        onClick={openReport}
+      >
         🖨 Print / Save as PDF
       </button>
-      <button className="export-btn" type="button" onClick={downloadHtml}>
+
+      <button
+        className="export-btn"
+        type="button"
+        onClick={downloadHtml}
+      >
         ⬇ Download Report
       </button>
-      <button className="export-btn export-btn-secondary" type="button" onClick={downloadJson}>
+
+      <button
+        className="export-btn export-btn-secondary"
+        type="button"
+        onClick={downloadJson}
+      >
         {"{ }"} Export JSON
       </button>
-      {feedback && <span className="export-feedback">{feedback}</span>}
+
+      {feedback && (
+        <span className="export-feedback" role="status">
+          {feedback}
+        </span>
+      )}
     </div>
   );
 }
