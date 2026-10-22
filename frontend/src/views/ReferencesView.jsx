@@ -34,7 +34,36 @@ const REFERENCES = [
     usedFor: "SQL parsing and extracting query structure and features.",
   },
 ];
+function getYouTubeEmbedUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
 
+    let videoId = null;
+
+    if (
+      parsedUrl.hostname === "www.youtube.com" ||
+      parsedUrl.hostname === "youtube.com"
+    ) {
+      if (parsedUrl.pathname === "/watch") {
+        videoId = parsedUrl.searchParams.get("v");
+      } else if (parsedUrl.pathname.startsWith("/embed/")) {
+        videoId = parsedUrl.pathname.split("/")[2];
+      } else if (parsedUrl.pathname.startsWith("/shorts/")) {
+        videoId = parsedUrl.pathname.split("/")[2];
+      }
+    } else if (parsedUrl.hostname === "youtu.be") {
+      videoId = parsedUrl.pathname.slice(1).split("/")[0];
+    }
+
+    if (!videoId || !/^[\w-]{11}$/.test(videoId)) {
+      return null;
+    }
+
+    return `https://www.youtube-nocookie.com/embed/${videoId}`;
+  } catch {
+    return null;
+  }
+}
 export default function ReferencesView() {
   return (
     <div className="references-view">
@@ -55,6 +84,18 @@ export default function ReferencesView() {
                 <div className="reference-copy">
                   <div className="reference-type">{reference.type}</div>
                   <h2>{reference.title}</h2>
+                  {reference.type === "Video" && getYouTubeEmbedUrl(reference.url) && (
+  <div className="reference-video">
+    <iframe
+      src={getYouTubeEmbedUrl(reference.url)}
+      title={reference.title}
+      loading="lazy"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerPolicy="strict-origin-when-cross-origin"
+      allowFullScreen
+    />
+  </div>
+)}
                   {reference.topic ? (
                     <>
                       <p className="reference-source"><strong>Topic</strong><span>{reference.topic}</span></p>
