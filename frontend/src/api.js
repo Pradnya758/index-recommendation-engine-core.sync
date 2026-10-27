@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://index-recommendation-engine-core-sync.onrender.com";
+const API_BASE_URL = "https://index-recommendation-engine-core-sync.onrender.com/api";
 
 async function request(path, options) {
   let response;
